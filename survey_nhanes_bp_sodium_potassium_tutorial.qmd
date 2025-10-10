@@ -1,0 +1,537 @@
+---
+title: "NHANES 2003–2006: Sodium, Potassium, and Blood Pressure"
+subtitle: "A Survey-Weighted Regression Example with phonto"
+author: "Johnny Zhao"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: show
+execute:
+  echo: true
+  warning: false
+  message: false
+vignette: >
+  %\VignetteIndexEntry{NHANES Sodium, Potassium, and Blood Pressure (Survey Analysis)}
+  %\VignetteEngine{quarto}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Introduction
+
+In this tutorial, we demonstrate how to reproduce and extend a textbook analysis of the relationship between dietary sodium, dietary potassium, and blood pressure, using NHANES data from 2003–2006.\
+The goal is to show how to:
+
+-   Retrieve and merge NHANES datasets programmatically with the `phonto` and `nhanesA` packages.
+
+-   Apply the appropriate survey weights to account for the complex sampling design.
+
+-   Fit survey-weighted regression models to estimate associations between nutrient intake and systolic/diastolic blood pressure.
+
+-   Compare results with those presented in the textbook to validate reproducibility.
+
+# **Packages**
+
+We begin by loading the packages required for data extraction, processing, and analysis.
+
+-   phonto and nhanesA: provide programmatic access to NHANES variables and allow flexible queries across cycles.
+
+-   survey: provides tools for creating complex survey designs and fitting weighted regression models.
+
+```{r}
+library(phonto)    # Epiconnector tools for reproducible NHANES access
+library(nhanesA)   # Interface to NHANES public datasets
+library(survey)    # Complex survey analysis
+library(dplyr)     # Data wrangling
+library(tidyr)     # Data wrangling
+```
+
+# Data Sources (revised)
+
+We use NHANES 2003–2006, combining two 2-year cycles: **2003–2004 (C)** and **2005–2006 (D)**. To reproduce the textbook faithfully while keeping the workflow reproducible, we query the original NHANES tables by cycle and retain **only the variables used downstream**, always by **name** (no numeric indexing).
+
+-   **DEMO (both cycles)**\
+    We keep the 12 design and demographic fields needed for survey weighting and covariates: `SEQN, SDDSRVYR, RIDSTATR, RIDEXMON, RIAGENDR, RIDAGEYR, RIDAGEMN, RIDAGEEX, WTINT2YR, WTMEC2YR, SDMVPSU, SDMVSTRA`.
+
+-   **BPX (both cycles)**\
+    Blood pressure outcomes (`BPXSAR` for systolic, `BPXDAR` for diastolic) are used when present. To mirror the textbook, for D-cycle records that lack pre-averaged values we compute means from the replicate readings (`BPXSY1–4`, `BPXDI1–4`) with `na.rm = TRUE`. The replicate columns are retained solely for this computation/QC.
+
+-   **BMX (both cycles)**\
+    We keep `SEQN` and `BMXBMI` as the obesity covariate.
+
+-   **DR1TOT (both cycles)**\
+    We retain the dietary Day-1 weight `WTDRD1` and the sodium/potassium intake variables `DR1TSODI` and `DR1TPOTA`(later expressed in g/day). These are the only DR1TOT fields used in analysis.
+
+After cycle-level retrieval, we harmonize columns, **row-bind C and D**, and derive analysis variables: sodium and potassium in **g/day** and a **four-year weight** `fouryearwt = WTDRD1 / 2`. This mirrors the textbook while aligning with our reproducible pipeline (name-based keeps, minimal variables, and explicit handling of D-cycle BP means).
+
+**Code: declare the targets we will keep (for the upcoming extraction/wrangling)**
+
+```{r}
+# --- Keep lists by *names*, minimal set for analysis ---
+# DEMO: exact 12 variables (C and D)
+DEMO_keep <- c("SEQN","SDDSRVYR","RIDSTATR","RIDEXMON","RIAGENDR","RIDAGEYR",
+               "RIDAGEMN","RIDAGEEX","WTINT2YR","WTMEC2YR","SDMVPSU","SDMVSTRA")
+
+# BPX: only what's needed for analysis + manual averages for 2005–06 if missing
+BPX_keep <- c(
+  "SEQN",
+  "BPXSAR","BPXDAR",          # precomputed (present in 2003–04; may be NA in 2005–06)
+  "BPXSY1","BPXSY2","BPXSY3","BPXSY4",  # raw systolic repeats
+  "BPXDI1","BPXDI2","BPXDI3","BPXDI4"   # raw diastolic repeats
+)
+
+BPX_keep_D <- setdiff(BPX_keep, c("BPXSAR","BPXDAR"))
+
+# BMX: SEQN + BMI (C and D)
+BMX_keep <- c("SEQN","BMXBMI")
+
+# DR1TOT: keep only what we actually use
+# - WTDRD1: dietary day 1 weight (textbook uses this, then /2 for four-year)
+# - DR1TSODI, DR1TPOTA: sodium & potassium (mg/day)
+DR1TOT_keep <- c("SEQN","WTDRD1","DR1TSODI","DR1TPOTA")
+
+# For downstream checks
+DIET_named_vars <- c("DR1TSODI","DR1TPOTA")
+
+# ---- jointQuery() column map (follow quick_start line ~224 pattern) ----
+cols_c <- list(DEMO_C = DEMO_keep,
+               BPX_C = BPX_keep,
+               BMX_C = BMX_keep,
+               DR1TOT_C = DR1TOT_keep)
+
+cols_d <- list(DEMO_D = DEMO_keep,
+               BPX_D = BPX_keep_D,
+               BMX_D = BMX_keep,
+               DR1TOT_D = DR1TOT_keep)
+
+# Will then use：
+# data <- jointQuery(cols)
+```
+
+# Data Extraction (revised)
+
+We retrieve the four domains (**DEMO, BPX, BMX, DR1TOT**) for each NHANES cycle and let the database do the joins. Following the textbook while keeping the pipeline reproducible, our workflow is:
+
+1.  For each cycle, declare a name-based keep list (no numeric indexing) and call the tables by their cycle-tagged names (e.g., `DEMO_C`, `BPX_D`).
+
+2.  Use a single database call to **join within cycle by `SEQN`**, producing one tidy file per cycle: `nhanes34` (C) and `nhanes56` (D).
+
+3.  Do not perform transformations here. Unit conversions and the four-year weight are created in the next section. For the D cycle only, we compute **`BPXSAR`/`BPXDAR` from replicate readings** when the pre-averaged values are absent, matching the textbook’s approach.
+
+### Cycle C (2003–2004)
+
+For the C cycle we select the textbook columns for DEMO, keep BMI from BMX, and keep the BP outcomes along with their replicates. We then perform a single database join on `SEQN` to obtain **`nhanes34`**, a cycle-level analytic file ready for later stacking.
+
+```{r}
+# Cycle C (2003–2004): pull and merge with jointQuery
+nhanes34 <- jointQuery(cols_c)
+```
+
+### Cycle D (2005–2006)
+
+For the D cycle we use the same keep lists, but the BP table may lack pre-averaged outcomes. After joining by `SEQN` to create **`nhanes56`**, we compute **`BPXSAR`** and **`BPXDAR`** from the four replicate readings (`BPXSY1–4`, `BPXDI1–4`, using `na.rm = TRUE`) only when needed. This defers all other transformations to the preprocessing section and keeps the extraction logic parallel across cycles.
+
+```{r}
+# Cycle D (2005–2006): pull and merge with jointQuery and add BPXSAR, BPXDAR
+nhanes56 <- jointQuery(cols_d)
+
+nhanes56$BPXSAR <- rowMeans(nhanes56[, c("BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4")], 
+                            na.rm = TRUE)
+nhanes56$BPXDAR <- rowMeans(nhanes56[, c("BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4")], 
+                            na.rm = TRUE)
+```
+
+# Data Cleaning and Preprocessing (revised)
+
+In this section, we will harmonize the C and D cycle files and prepare analysis-ready fields. First, we **stack** the cycle-level datasets (`nhanes34`and `nhanes56`) into a single file to mirror the textbook’s workflow. Next, we create the analysis variables used throughout the models:
+
+```{r}
+# --- Combine cycles (C + D) ---
+nhanes <- rbind(nhanes34, nhanes56)
+# Fialed to use unionQuerry because it calls the datasets from the NHANES databse 
+
+# --- Derive analysis variables (textbook-consistent) ---
+# Convert sodium/potassium from mg/day to g/day
+nhanes$sodium <- nhanes$DR1TSODI / 1000
+nhanes$potassium <- nhanes$DR1TPOTA / 1000
+
+# Construct 4-year dietary weight (two 2-year cycles combined)
+nhanes$fouryearwt <- nhanes$WTDRD1 / 2
+
+# --- Optional quick QC (no tidyverse) ---
+qc_vars <- c("BPXSAR","BPXDAR","sodium","potassium","fouryearwt")
+summary(nhanes[, qc_vars, drop = FALSE])
+sum(is.na(nhanes$WTDRD1))  # survey design will subset these out
+```
+
+**Notes**
+
+-   **SBP/DBP outcomes**: For the D cycle, any missing pre-averaged outcomes were already computed from the four replicate readings during **Data Extraction**; we do **not** recompute means here.
+
+-   **Units**: Convert dietary sodium (`DR1TSODI`) and potassium (`DR1TPOTA`) from mg/day to **g/day** for interpretability and consistency with the textbook presentation.
+
+-   **Weights**: Construct the **four-year dietary weight** as `fouryearwt = WTDRD1 / 2`, reflecting the combination of two 2-year cycles (2003–2004 and 2005–2006).
+
+# Survey Design (updated)
+
+We now build the NHANES complex survey design to mirror the textbook analysis. Strata and primary sampling units are **SDMVSTRA** and **SDMVPSU**; the analytic weight is the **Day-1 dietary weight**. Because we combine two 2-year cycles (2003–2004 and 2005–2006), we follow the textbook and use a **four-year weight** defined as `fouryearwt = WTDRD1 / 2`. The analytic dataset is restricted to participants with non-missing `WTDRD1`. Sodium and potassium are expressed in **g/day**and are carried into the design.
+
+```{r}
+# Survey options (per Robert's suggestion)
+options(survey.lonely.psu = "adjust")
+
+# Subset to observations with dietary weight available (textbook logic)
+analytic_df <- subset(nhanes, !is.na(WTDRD1))
+
+# Ensure sodium/potassium exist in g/day (if already created earlier, this is a no-op)
+if (!all(c("sodium","potassium") %in% names(analytic_df))) {
+  analytic_df$sodium <- analytic_df$DR1TSODI / 1000  # mg -> g/day
+  analytic_df$potassium <- analytic_df$DR1TPOTA / 1000}
+
+# Create survey design (single-stage NHANES approximation as in the textbook)
+des <- svydesign(
+  id = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~fouryearwt,
+  nest = TRUE,
+  data = analytic_df)
+
+# Textbook shows update(des, sodium=..., potassium=...).
+# We avoid redundancy since sodium/potassium already exist in analytic_df.
+# If mirror the textbook literally is desired, uncomment the lines below:
+# des <- update(des, sodium = DR1TSODI / 1000, potassium = DR1TPOTA / 1000)
+```
+
+**Notes**
+
+-   We set `options(survey.lonely.psu = "adjust")` to stabilize variance estimation when “lonely PSUs” occur.
+
+-   `nest = TRUE` treats PSUs as nested within strata across combined cycles, which is standard for NHANES.
+
+-   We keep `WTINT2YR` and `WTMEC2YR` in the dataset for completeness/QC, but dietary models use the four-year weight derived from `WTDRD1`.
+
+-   BP means (SBP/DBP) are **not recomputed** here; any D-cycle averaging from replicate readings was done during data extraction.
+
+-   If preferred, sodium and potassium (g/day) can also be added via `survey::update()` on the design object to mirror the textbook’s presentation exactly.
+
+Next, we’ll fit the survey-weighted models that replicate Table 5.1 (systolic/diastolic, stepwise adjustment) and perform a joint Wald test for sodium and potassium.
+
+# Models (updated)
+
+We fit survey-weighted linear models for systolic blood pressure (**BPXSAR**), following the textbook’s stepwise specification. Sodium and potassium are already in g/day inside the design object. We begin with an unadjusted model and then sequentially add age, sex, and BMI:
+
+-   **Model 0:** sodium + potassium (unadjusted)
+
+-   **Model 1:** Model 0 + age (**RIDAGEYR**)
+
+-   **Model 2:** Model 1 + sex (**RIAGENDR**)
+
+-   **Model 3:** Model 2 + BMI (**BMXBMI**)
+
+We report a joint (Wald) test of sodium and potassium in the fully adjusted model to mirror the textbook comparison.
+
+```{r}
+## Systolic blood pressure (SBP) models:
+m0 <- svyglm(BPXSAR ~ sodium + potassium, design = des)
+m1 <- svyglm(BPXSAR ~ sodium + potassium + RIDAGEYR, design = des)
+m2 <- svyglm(BPXSAR ~ sodium + potassium + RIDAGEYR + RIAGENDR, design = des)
+m3 <- svyglm(BPXSAR ~ sodium + potassium + RIDAGEYR + RIAGENDR + BMXBMI, design = des)
+
+summary(m0); summary(m1); summary(m2); summary(m3)
+
+# Joint (Wald) test for sodium & potassium in the fully adjusted SBP model
+wald_sbp <- regTermTest(m3, ~ potassium + sodium, df = NULL)
+wald_sbp
+```
+
+-   The Wald test uses design-based degrees of freedom (`df = NULL`) appropriate for NHANES.
+
+-   Diagnostics for the fully adjusted specification are shown in the next section.
+
+We repeat the same stepwise sequence for diastolic blood pressure (**BPXDAR**), producing models **m4–m7** analogous to **m0–m3**.
+
+```{r}
+## Diastolic blood pressure (DBP) models:
+m4 <- svyglm(BPXDAR ~ sodium + potassium, design = des)
+m5 <- svyglm(BPXDAR ~ sodium + potassium + RIDAGEYR, design = des)
+m6 <- svyglm(BPXDAR ~ sodium + potassium + RIDAGEYR + RIAGENDR, design = des)
+m7 <- svyglm(BPXDAR ~ sodium + potassium + RIDAGEYR + RIAGENDR + BMXBMI, design = des)
+
+summary(m4); summary(m5); summary(m6); summary(m7)
+```
+
+-   Interpretations parallel the SBP models; diagnostics are shown next.
+
+-   Full coefficient tables for all stepwise models are produced directly from the model objects in **Appendix 1** (no manual transcription).
+
+### Compact coefficient tables
+
+To avoid copy-paste and ensure reproducibility, we do not hand-assemble mini-tables here. Instead, all coefficients for **m0–m7** (and later interaction models) are extracted programmatically from the fitted objects and presented in **Appendix 1: Additional Tables**.
+
+```{r}
+coef_table <- function(mod_list, model_names, keep_terms = c("sodium","potassium")) {
+  do.call(rbind, lapply(seq_along(mod_list), function(i) {
+    s  <- summary(mod_list[[i]])
+    co <- coef(s)
+    co <- co[rownames(co) %in% keep_terms, , drop = FALSE]
+    data.frame(
+      model = model_names[i],
+      term  = rownames(co),
+      estimate = co[, "Estimate"],
+      se       = co[, "Std. Error"],
+      p_value  = co[, "Pr(>|t|)"],
+      row.names = NULL
+    )
+  }))
+}
+
+tab_sbp <- coef_table(list(m0,m1,m2,m3), c("m0","m1","m2","m3"))
+tab_dbp <- coef_table(list(m4,m5,m6,m7), c("m4","m5","m6","m7"))
+
+# Preview:
+# head(tab_sbp); head(tab_dbp)
+```
+
+Keep the model objects (**m0–m7**) in the session; we reference them again in diagnostics and the appendix tables.
+
+**Reproduced Table 5.1** **from desktop environment:**
+
+| Model | Systolic BP Sodium | Systolic BP Potassium | Diastolic BP Sodium | Diastolic BP Potassium |
+|---------------|---------------|---------------|---------------|---------------|
+| Unadjusted | -0.69 (0.17) | 0.78 (0.27) | -0.05 (0.11) | 0.88 (0.21) |
+| Age and gender | 0.59 (0.16) | -1.09 (0.18) | 0.35 (0.10) | 0.26 (0.19) |
+| Age, gender, BMI | 0.43 (0.16) | -0.96 (0.17) | 0.19 (0.10) | 0.38 (0.18) |
+
+# Diagnostic
+
+To assess model fit under a complex survey design, we visualize
+
+\(1\) residuals vs. fitted with a **survey-weighted smoother** and
+
+\(2\) **partial residual curves** for key predictors.
+
+Because `svyglm` drops rows with missing covariates, diagnostics must use the **same non-missing subset** as the fitted model. We therefore
+
+\(i\) choose the model to diagnose (e.g., `m3` for the fully adjusted SBP model),
+
+\(ii\) recover its non-missing analytic subset, and (iii) pass that subset to `make.panel.svysmooth()`so the smoother respects weights, strata, and PSUs.
+
+```{r}
+# Choose which model to diagnose:
+# - To mirror the textbook’s example, use m1 (age-adjusted)
+# - To diagnose the fully adjusted model, use m3 (default here)
+diag_model <- m3  # change to m1 for textbook’s exact choice 
+
+# Non-missing analytic subset used by diag_model
+nonmissing <- des[-diag_model$na.action]
+```
+
+This ensures the diagnostic plots honor the **design-based** structure rather than treating the data as simple random samples.
+
+### 1) Residuals vs Fitted with survey-weighted smoother
+
+We first inspect residuals against fitted values, overlaying a survey-weighted smoother. Pronounced curvature, trumpet shapes, or strong heteroskedasticity may suggest mis-specification (e.g., missing interactions or non-linear terms).
+
+```{r}
+plot(diag_model, panel = make.panel.svysmooth(nonmissing))
+```
+
+-   A near-flat smoother indicates no major mean-structure misspecification conditional on the covariates.
+
+-   Systematic curvature may motivate adding an interaction (e.g., age×sex) or a flexible age term (e.g., natural splines).
+
+### 2) Partial residual plots (weighted)
+
+We draw **partial residual** curves using `termplot()` with `smooth = make.panel.svysmooth(nonmissing)` so the curves are survey-weighted. This helps assess approximate linearity for continuous predictors such as **sodium**, **potassium**, and **RIDAGEYR**, conditional on the other covariates.
+
+```{r}
+termplot(diag_model,data = model.frame(nonmissing), partial = TRUE, se = TRUE, 
+         smooth = make.panel.svysmooth(nonmissing))
+```
+
+**Reading the plots:**
+
+-   Visible curvature in sodium or potassium suggests that transformations or flexible terms could improve fit.
+
+-   **Wider shaded bands** indicate greater uncertainty, often at intake extremes where survey weights up-weight fewer respondents.
+
+-   Patterns that differ by age hint at the interactions explored later (age×sex and spline×sex).
+
+# Interactions (updated)
+
+We test whether the associations of sodium and potassium with blood pressure vary by age and by sex. Following the textbook, we first center age at **40 years** to make coefficients easy to interpret, then explore additional interaction structures, including **age × sex** and **natural splines for age interacted with sex**.
+
+## SBP model with interactions (Table 5.2)
+
+For systolic BP (**BPXSAR**), we interact the combined sodium–potassium term with **centered age** (`RIDAGEYR − 40`), adjusting for sex and BMI. With this centering, the main effects for **sodium** and **potassium** represent estimated effects **at age 40**, and the interaction terms represent **how those effects change per 1-year increase** in age.
+
+```{r}
+int_sbp <- svyglm(
+  BPXSAR ~ (sodium + potassium) * I(RIDAGEYR - 40)
+             + RIAGENDR + BMXBMI, design = des)
+summary(int_sbp)
+```
+
+Interpret estimates as mmHg change in SBP per 1 g/day increase (at age 40), with age-interaction coefficients giving the yearly change in that slope.
+
+## DBP model with interactions (Table 5.2)
+
+We fit the analogous model for diastolic BP (**BPXDAR**), again interacting the sodium–potassium term with centered age and adjusting for sex and BMI.
+
+```{r}
+int_dbp <- svyglm(
+  BPXDAR ~ (sodium + potassium) * I(RIDAGEYR - 40)
+             + RIAGENDR + BMXBMI, design = des)
+summary(int_dbp)
+```
+
+As above, main effects are slopes at age 40; interaction terms indicate how the slope changes with each additional year of age.
+
+## Additional interaction models (age × sex)
+
+Next, we examine whether the **age gradient** in BP differs by **sex**. We include an **age × sex** interaction while keeping sodium, potassium, and BMI in the model. This tests if the relationship between age and BP is different for males and females.
+
+```{r}
+# SBP model: age × sex interaction
+mod_sbp_age_sex <- svyglm(
+  BPXSAR ~ sodium + potassium + RIDAGEYR * RIAGENDR + BMXBMI,
+  design = des)
+
+# DBP model: age × sex interaction
+mod_dbp_age_sex <- svyglm(
+  BPXDAR ~ sodium + potassium + RIDAGEYR * RIAGENDR + BMXBMI,
+  design = des)
+
+summary(mod_sbp_age_sex)
+summary(mod_dbp_age_sex)
+```
+
+A significant age × sex term implies distinct age-related BP patterns by sex after accounting for sodium, potassium, and BMI.
+
+## Natural splines for age with sex interaction
+
+To allow flexible age effects, we replace linear age with a **natural spline** (df = 5) and interact it with sex. This specification captures non-linear age patterns and permits these patterns to differ by sex.
+
+```{r}
+# ns() from splines; use 5 df as suggested
+library(splines)
+
+# SBP model: ns(age, 5) × sex
+mod_sbp_ns_age_sex <- svyglm(
+  BPXSAR ~ sodium + potassium + ns(RIDAGEYR, 5) * RIAGENDR + BMXBMI,
+  design = des
+)
+
+# DBP model: ns(age, 5) × sex
+mod_dbp_ns_age_sex <- svyglm(
+  BPXDAR ~ sodium + potassium + ns(RIDAGEYR, 5) * RIAGENDR + BMXBMI,
+  design = des
+)
+
+summary(mod_sbp_ns_age_sex)
+summary(mod_dbp_ns_age_sex)
+```
+
+Significant spline × sex terms indicate that the **shape** of the age–BP curve varies by sex (not just the slope).
+
+## Marginal effects by age (readable summaries)
+
+For interpretation, it is useful to report **age-specific slopes** for sodium and potassium (in g/day) at a few reference ages (e.g., 20, 40, 60). For the centered-age models, the slope at age **A** equals the main effect (at 40) **plus** `(A − 40) ×` the corresponding interaction coefficient.
+
+$$
+\beta_{\text{sodium}} + (A-40)\times \beta_{\text{sodium:age_c}}
+$$
+
+We compute these linear combinations (with standard errors and p-values) directly from the model coefficients and variance–covariance matrix.
+
+```{r}
+# Helper to compute age-specific slopes (linear combinations) for sodium/potassium
+marginal_slopes <- function(mod, ages = c(20, 40, 60), terms = c("sodium","potassium")) {
+  b  <- coef(mod)
+  V  <- vcov(mod)
+  df <- summary(mod)$df  # design-based df used by svyglm summaries
+
+  build_row <- function(term, age) {
+    agec <- age - 40
+    main <- term
+    inter <- paste0(term, ":age_c")
+    if (!all(c(main, inter) %in% names(b))) stop("Term names not found in model: ", term)
+
+    L <- rep(0, length(b)); names(L) <- names(b)
+    L[main]  <- 1
+    L[inter] <- agec
+
+    est <- sum(L * b)
+    se  <- sqrt(as.numeric(t(L) %*% V %*% L))
+    tval <- est / se
+    pval <- 2 * pt(abs(tval), df = df, lower.tail = FALSE)
+    data.frame(term = term, age = age, slope = est, se = se, t = tval, p = pval)
+  }
+
+  do.call(rbind, lapply(terms, function(term)
+    do.call(rbind, lapply(ages, function(a) build_row(term, a)))
+  ))
+}
+```
+
+**How to read these:**
+
+-   At **age 40**, the slope equals the model’s main effect (because `age_c = 0`).
+
+-   At **age 60**, add `20 × (interaction coefficient)` to the main effect; at **age 20**, subtract `20 × (interaction coefficient)`.
+
+-   Report results as **mmHg change in SBP/DBP per 1 g/day increase** at the specified age, with standard errors and p-values computed from the model’s variance–covariance matrix.
+
+**Reproduced Table 5.2 from desktop environment:**
+
+|               | Systolic BP |           |          | Diastolic BP |           |          |
+|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+|               | Coefficient | Std Error | p-value  | Coefficient  | Std Error | p-value  |
+| Sodium        | 0.310       | 0.166     | 0.075    | 0.310        | 0.114     | 0.012    |
+| Potassium     | -0.976      | 0.183     | \< 0.001 | 0.326        | 0.182     | 0.087    |
+| Sodium:Age    | -0.016      | 0.009     | 0.086    | 0.045        | 0.007     | \< 0.001 |
+| Potassium:Age | -0.040      | 0.010     | \< 0.001 | -0.037       | 0.007     | \< 0.001 |
+
+# Appendix 1: Additional Tables
+
+This appendix chunk programmatically extracts all model coefficients directly from the fitted objects. Avoiding manual copy/paste and transcription errors. Using base R only, it compiles a single “long” table with one row per term per model (covering `m0–m7, int_sbp, int_dbp, mod_sbp_age_sex, mod_dbp_age_sex, mod_sbp_ns_age_sex, and mod_dbp_ns_age_sex`). For each term, we report the estimate, standard error, t statistic, and p value. The resulting table is reproducible, easy to audit, and ready for downstream export (e.g., CSV) or formatting into publication-ready tables.
+
+```{r}
+# --- Collect coefficients from models (base R only) ---
+
+# Models to include
+models <- list(
+  m0 = m0, m1 = m1, m2 = m2, m3 = m3, m4 = m4, m5 = m5, m6 = m6, m7 = m7,
+  int_sbp = int_sbp, int_dbp = int_dbp,
+  mod_sbp_age_sex = mod_sbp_age_sex, mod_dbp_age_sex = mod_dbp_age_sex,
+  mod_sbp_ns_age_sex = mod_sbp_ns_age_sex, mod_dbp_ns_age_sex = mod_dbp_ns_age_sex
+)
+
+# Helper: extract coefficient table from a model
+coef_from <- function(mod) {
+  cf <- summary(mod)$coefficients
+  data.frame(
+    term = rownames(cf),
+    estimate = round(cf[, 1], 2),
+    std.error = round(cf[, 2], 2),
+    t.value = cf[, 3],
+    p.value = cf[, 4],
+    row.names = NULL
+  )
+}
+
+# Build a long coefficient table with a model column
+coef_table_all <- do.call(rbind, lapply(names(models), function(nm) {
+  df <- coef_from(models[[nm]])
+  df$model <- nm
+  df[, c("model", "term", "estimate", "std.error", "t.value", "p.value")]
+}))
+
+# Preview (change head() to nrow(coef_table_all) to print all)
+coef_table_all
+
+# Optional: save to CSV for appendix
+# write.csv(coef_table_all, "coefficients_all_models.csv", row.names = FALSE)
+
+```
