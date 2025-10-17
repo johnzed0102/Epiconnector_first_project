@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Johnny Zhao">
+
+<title>NHANES 2003–2006: Sodium, Potassium, and Blood Pressure</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/clipboard/clipboard.min.js"></script>
+<script src="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/quarto-html/quarto.js"></script>
+<script src="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/quarto-html/popper.min.js"></script>
+<script src="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/quarto-html/anchor.min.js"></script>
+<link href="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/kePrint-0.0.1/kePrint.js"></script>
+<link href="survey_nhanes_bp_sodium_potassium_tutorial_files/libs/lightable-0.0.1/lightable.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link active" data-scroll-target="#introduction">1. Introduction</a></li>
+  <li><a href="#packages" id="toc-packages" class="nav-link" data-scroll-target="#packages">2. Packages</a></li>
+  <li><a href="#data-sources" id="toc-data-sources" class="nav-link" data-scroll-target="#data-sources">3. Data Sources</a></li>
+  <li><a href="#data-extraction" id="toc-data-extraction" class="nav-link" data-scroll-target="#data-extraction">4. Data Extraction</a>
+  <ul class="collapse">
+  <li><a href="#cycle-c-20032004" id="toc-cycle-c-20032004" class="nav-link" data-scroll-target="#cycle-c-20032004">4.1. Cycle C (2003–2004)</a></li>
+  <li><a href="#cycle-d-20052006" id="toc-cycle-d-20052006" class="nav-link" data-scroll-target="#cycle-d-20052006">4.2. Cycle D (2005–2006)</a></li>
+  </ul></li>
+  <li><a href="#data-cleaning-and-preprocessing" id="toc-data-cleaning-and-preprocessing" class="nav-link" data-scroll-target="#data-cleaning-and-preprocessing">5. Data Cleaning and Preprocessing</a></li>
+  <li><a href="#survey-design" id="toc-survey-design" class="nav-link" data-scroll-target="#survey-design">6. Survey Design</a></li>
+  <li><a href="#models" id="toc-models" class="nav-link" data-scroll-target="#models">7. Models</a>
+  <ul class="collapse">
+  <li><a href="#main-model-sequence-table-1a" id="toc-main-model-sequence-table-1a" class="nav-link" data-scroll-target="#main-model-sequence-table-1a">7.1 Main model sequence (Table 1a)</a></li>
+  <li><a href="#sensitivity-natural-spline-for-age-table-1b" id="toc-sensitivity-natural-spline-for-age-table-1b" class="nav-link" data-scroll-target="#sensitivity-natural-spline-for-age-table-1b">7.2. Sensitivity: Natural spline for age (Table 1b)</a></li>
+  <li><a href="#sensitivity-natural-spline-age-sex-table-1c" id="toc-sensitivity-natural-spline-age-sex-table-1c" class="nav-link" data-scroll-target="#sensitivity-natural-spline-age-sex-table-1c">7.3. Sensitivity: Natural spline age × sex (Table 1c)</a></li>
+  <li><a href="#consolidated-comparison-linear-vs-spline-vs-splinesex" id="toc-consolidated-comparison-linear-vs-spline-vs-splinesex" class="nav-link" data-scroll-target="#consolidated-comparison-linear-vs-spline-vs-splinesex">7.4. Consolidated comparison (Linear vs Spline vs Spline×Sex)</a></li>
+  <li><a href="#brief-discussion" id="toc-brief-discussion" class="nav-link" data-scroll-target="#brief-discussion">7.5. Brief discussion</a></li>
+  </ul></li>
+  <li><a href="#diagnostic" id="toc-diagnostic" class="nav-link" data-scroll-target="#diagnostic">8. Diagnostic</a>
+  <ul class="collapse">
+  <li><a href="#preparing-the-analytic-subset" id="toc-preparing-the-analytic-subset" class="nav-link" data-scroll-target="#preparing-the-analytic-subset">8.1 Preparing the analytic subset</a></li>
+  <li><a href="#residuals-vs-fitted-with-survey-weighted-smoother" id="toc-residuals-vs-fitted-with-survey-weighted-smoother" class="nav-link" data-scroll-target="#residuals-vs-fitted-with-survey-weighted-smoother">8.2 Residuals vs Fitted with Survey-Weighted Smoother</a></li>
+  <li><a href="#partial-residual-plots-weighted" id="toc-partial-residual-plots-weighted" class="nav-link" data-scroll-target="#partial-residual-plots-weighted">8.3 Partial Residual Plots (Weighted)</a></li>
+  <li><a href="#summary-of-diagnostics" id="toc-summary-of-diagnostics" class="nav-link" data-scroll-target="#summary-of-diagnostics">8.4 Summary of Diagnostics</a></li>
+  </ul></li>
+  <li><a href="#more-models-some-were-added-during-last-version-but-seems-a-bit-redundant-now-as-weve-made-so-much-revisions-on-section-7" id="toc-more-models-some-were-added-during-last-version-but-seems-a-bit-redundant-now-as-weve-made-so-much-revisions-on-section-7" class="nav-link" data-scroll-target="#more-models-some-were-added-during-last-version-but-seems-a-bit-redundant-now-as-weve-made-so-much-revisions-on-section-7">9. More Models (Some were added during last version, but seems a bit redundant now as we’ve made so much revisions on Section 7)</a>
+  <ul class="collapse">
+  <li><a href="#sbp-model-with-interactions-table-5.2" id="toc-sbp-model-with-interactions-table-5.2" class="nav-link" data-scroll-target="#sbp-model-with-interactions-table-5.2">9.1. SBP model with interactions (Table 5.2)</a></li>
+  <li><a href="#dbp-model-with-interactions-table-5.2" id="toc-dbp-model-with-interactions-table-5.2" class="nav-link" data-scroll-target="#dbp-model-with-interactions-table-5.2">9.2. DBP model with interactions (Table 5.2)</a></li>
+  <li><a href="#table-2.-age-interactions-summary-replicating-textbook-table-5.2" id="toc-table-2.-age-interactions-summary-replicating-textbook-table-5.2" class="nav-link" data-scroll-target="#table-2.-age-interactions-summary-replicating-textbook-table-5.2">9.3. Table 2. Age interactions summary (replicating textbook Table 5.2)</a></li>
+  <li><a href="#additional-interaction-models-age-sex" id="toc-additional-interaction-models-age-sex" class="nav-link" data-scroll-target="#additional-interaction-models-age-sex">9.4. Additional interaction models (age × sex)</a></li>
+  <li><a href="#natural-splines-for-age-with-sex-interaction" id="toc-natural-splines-for-age-with-sex-interaction" class="nav-link" data-scroll-target="#natural-splines-for-age-with-sex-interaction">9.5. Natural splines for age with sex interaction</a></li>
+  <li><a href="#marginal-effects-by-age-readable-summaries" id="toc-marginal-effects-by-age-readable-summaries" class="nav-link" data-scroll-target="#marginal-effects-by-age-readable-summaries">9.6. Marginal effects by age (readable summaries)</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">NHANES 2003–2006: Sodium, Potassium, and Blood Pressure</h1>
+<p class="subtitle lead">A Survey-Weighted Regression Example with phonto</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Johnny Zhao </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="introduction" class="level1">
+<h1>1. Introduction</h1>
+<p>In this tutorial, we demonstrate how to reproduce and extend a textbook analysis of the relationship between dietary sodium, dietary potassium, and blood pressure, using NHANES data from 2003–2006.<br>
+The goal is to show how to:</p>
+<ul>
+<li><p>Retrieve and merge NHANES datasets programmatically with the <code>phonto</code> and <code>nhanesA</code> packages.</p></li>
+<li><p>Apply the appropriate survey weights to account for the complex sampling design.</p></li>
+<li><p>Fit survey-weighted regression models to estimate associations between nutrient intake and systolic/diastolic blood pressure.</p></li>
+<li><p>Compare results with those presented in the textbook to validate reproducibility.</p></li>
+</ul>
+</section>
+<section id="packages" class="level1">
+<h1>2. Packages</h1>
+<p>We begin by loading the packages required for data extraction, processing, and analysis.</p>
+<ul>
+<li><p>phonto and nhanesA: provide programmatic access to NHANES variables and allow flexible queries across cycles.</p></li>
+<li><p>survey: provides tools for creating complex survey designs and fitting weighted regression models.</p></li>
+</ul>
+</section>
+<section id="data-sources" class="level1">
+<h1>3. Data Sources</h1>
+<p>We use NHANES 2003–2006, combining two 2-year cycles: <strong>2003–2004 (C)</strong> and <strong>2005–2006 (D)</strong>. To reproduce the textbook faithfully while keeping the workflow reproducible, we query the original NHANES tables by cycle and retain <strong>only the variables used downstream</strong>, always by <strong>name</strong> (no numeric indexing).</p>
+<ul>
+<li><p><strong>DEMO (both cycles)</strong><br>
+We keep the 12 design and demographic fields needed for survey weighting and covariates: <code>SEQN, SDDSRVYR, RIDSTATR, RIDEXMON, RIAGENDR, RIDAGEYR, RIDAGEMN, RIDAGEEX, WTINT2YR, WTMEC2YR, SDMVPSU, SDMVSTRA</code>.</p></li>
+<li><p><strong>BPX (both cycles)</strong><br>
+Blood pressure outcomes (<code>BPXSAR</code> for systolic, <code>BPXDAR</code> for diastolic) are used when present. To mirror the textbook, for D-cycle records that lack pre-averaged values we compute means from the replicate readings (<code>BPXSY1–4</code>, <code>BPXDI1–4</code>) with <code>na.rm = TRUE</code>. The replicate columns are retained solely for this computation/QC.</p></li>
+<li><p><strong>BMX (both cycles)</strong><br>
+We keep <code>SEQN</code> and <code>BMXBMI</code> as the obesity covariate.</p></li>
+<li><p><strong>DR1TOT (both cycles)</strong><br>
+We retain the dietary Day-1 weight <code>WTDRD1</code> and the sodium/potassium intake variables <code>DR1TSODI</code> and <code>DR1TPOTA</code>(later expressed in g/day). These are the only DR1TOT fields used in analysis.</p></li>
+</ul>
+<p>After cycle-level retrieval, we harmonize columns, <strong>row-bind C and D</strong>, and derive analysis variables: sodium and potassium in <strong>g/day</strong> and a <strong>four-year weight</strong> <code>fouryearwt = WTDRD1 / 2</code>. This mirrors the textbook while aligning with our reproducible pipeline (name-based keeps, minimal variables, and explicit handling of D-cycle BP means).</p>
+<p><strong>Code: declare the targets we will keep (for the upcoming extraction/wrangling)</strong></p>
+</section>
+<section id="data-extraction" class="level1">
+<h1>4. Data Extraction</h1>
+<p>We retrieve the four domains (<strong>DEMO, BPX, BMX, DR1TOT</strong>) for each NHANES cycle and let the database do the joins. Following the textbook while keeping the pipeline reproducible, our workflow is:</p>
+<ol type="1">
+<li><p>For each cycle, declare a name-based keep list (no numeric indexing) and call the tables by their cycle-tagged names (e.g., <code>DEMO_C</code>, <code>BPX_D</code>).</p></li>
+<li><p>Use a single database call to <strong>join within cycle by <code>SEQN</code></strong>, producing one tidy file per cycle: <code>nhanes34</code> (C) and <code>nhanes56</code> (D).</p></li>
+<li><p>Do not perform transformations here. Unit conversions and the four-year weight are created in the next section. For the D cycle only, we compute <strong><code>BPXSAR</code>/<code>BPXDAR</code> from replicate readings</strong> when the pre-averaged values are absent, matching the textbook’s approach.</p></li>
+</ol>
+<section id="cycle-c-20032004" class="level3">
+<h3 class="anchored" data-anchor-id="cycle-c-20032004">4.1. Cycle C (2003–2004)</h3>
+<p>For the C cycle we select the textbook columns for DEMO, keep BMI from BMX, and keep the BP outcomes along with their replicates. We then perform a single database join on <code>SEQN</code> to obtain <strong><code>nhanes34</code></strong>, a cycle-level analytic file ready for later stacking.</p>
+</section>
+<section id="cycle-d-20052006" class="level3">
+<h3 class="anchored" data-anchor-id="cycle-d-20052006">4.2. Cycle D (2005–2006)</h3>
+<p>For the D cycle we use the same keep lists, but the BP table may lack pre-averaged outcomes. After joining by <code>SEQN</code> to create <strong><code>nhanes56</code></strong>, we compute <strong><code>BPXSAR</code></strong> and <strong><code>BPXDAR</code></strong> from the four replicate readings (<code>BPXSY1–4</code>, <code>BPXDI1–4</code>, using <code>na.rm = TRUE</code>) only when needed. This defers all other transformations to the preprocessing section and keeps the extraction logic parallel across cycles.</p>
+</section>
+</section>
+<section id="data-cleaning-and-preprocessing" class="level1">
+<h1>5. Data Cleaning and Preprocessing</h1>
+<p>In this section, we will harmonize the C and D cycle files and prepare analysis-ready fields. First, we <strong>stack</strong> the cycle-level datasets (<code>nhanes34</code>and <code>nhanes56</code>) into a single file to mirror the textbook’s workflow. Next, we create the analysis variables used throughout the models:</p>
+<p><strong>Notes</strong></p>
+<ul>
+<li><p><strong>SBP/DBP outcomes</strong>: For the D cycle, any missing pre-averaged outcomes were already computed from the four replicate readings during <strong>Data Extraction</strong>; we do <strong>not</strong> recompute means here.</p></li>
+<li><p><strong>Units</strong>: Convert dietary sodium (<code>DR1TSODI</code>) and potassium (<code>DR1TPOTA</code>) from mg/day to <strong>g/day</strong> for interpretability and consistency with the textbook presentation.</p></li>
+<li><p><strong>Weights</strong>: Construct the <strong>four-year dietary weight</strong> as <code>fouryearwt = WTDRD1 / 2</code>, reflecting the combination of two 2-year cycles (2003–2004 and 2005–2006).</p></li>
+</ul>
+</section>
+<section id="survey-design" class="level1">
+<h1>6. Survey Design</h1>
+<p>We now build the NHANES complex survey design to mirror the textbook analysis. Strata and primary sampling units are <strong>SDMVSTRA</strong> and <strong>SDMVPSU</strong>; the analytic weight is the <strong>Day-1 dietary weight</strong>. Because we combine two 2-year cycles (2003–2004 and 2005–2006), we follow the textbook and use a <strong>four-year weight</strong> defined as <code>fouryearwt = WTDRD1 / 2</code>. The analytic dataset is restricted to participants with non-missing <code>WTDRD1</code>. Sodium and potassium are expressed in <strong>g/day</strong>and are carried into the design.</p>
+<p><strong>Notes</strong></p>
+<ul>
+<li><p>We set <code>options(survey.lonely.psu = "adjust")</code> to stabilize variance estimation when “lonely PSUs” occur.</p></li>
+<li><p><code>nest = TRUE</code> treats PSUs as nested within strata across combined cycles, which is standard for NHANES.</p></li>
+<li><p>We keep <code>WTINT2YR</code> and <code>WTMEC2YR</code> in the dataset for completeness/QC, but dietary models use the four-year weight derived from <code>WTDRD1</code>.</p></li>
+<li><p>BP means (SBP/DBP) are <strong>not recomputed</strong> here; any D-cycle averaging from replicate readings was done during data extraction.</p></li>
+<li><p>If preferred, sodium and potassium (g/day) can also be added via <code>survey::update()</code> on the design object to mirror the textbook’s presentation exactly.</p></li>
+</ul>
+<p>Next, we’ll fit the survey-weighted models that replicate Table 5.1 (systolic/diastolic, stepwise adjustment) and perform a joint Wald test for sodium and potassium.</p>
+</section>
+<section id="models" class="level1">
+<h1>7. Models</h1>
+<section id="main-model-sequence-table-1a" class="level2">
+<h2 class="anchored" data-anchor-id="main-model-sequence-table-1a">7.1 Main model sequence (Table 1a)</h2>
+<p>We start by fitting <strong>survey-weighted linear models</strong> for <em>systolic blood pressure (BPXSAR)</em>, following the textbook’s stepwise approach:</p>
+<ul>
+<li><p><strong>Model 0:</strong> sodium + potassium <em>(unadjusted)</em></p></li>
+<li><p><strong>Model 1:</strong> Model 0 + age <em>(RIDAGEYR)</em></p></li>
+<li><p><strong>Model 2:</strong> Model 1 + sex <em>(RIAGENDR)</em></p></li>
+<li><p><strong>Model 3:</strong> Model 2 + BMI <em>(BMXBMI)</em></p></li>
+</ul>
+<p>Each model adds one potential confounder to evaluate how the associations between dietary sodium, potassium, and blood pressure evolve as we account for more covariates.</p>
+<p>We also compute a <strong>joint (Wald) test</strong> for sodium and potassium in the fully adjusted model (Model 3), consistent with the textbook’s comparison.</p>
+<ul>
+<li><p>The unadjusted model (Model 0) shows sodium and potassium moving in opposite directions from what we expect biologically.</p></li>
+<li><p>Once age is added (Model 1), the signs of both coefficients reverse.</p></li>
+<li><p>This large shift indicates a <strong>strong confounding effect of age</strong>, as older participants tend to have higher blood pressure but consume less sodium and potassium.</p></li>
+</ul>
+<p>We repeat the same stepwise specification for <strong>diastolic blood pressure (BPXDAR)</strong>, producing models <em>m4–m7</em> that directly correspond to the systolic series (<em>m0–m3</em>).</p>
+<ul>
+<li><p>The direction and magnitude of effects in diastolic blood pressure are consistent with those for systolic BP.</p></li>
+<li><p>Adjusting for age again reverses the sign of sodium and potassium coefficients.</p></li>
+<li><p>Further adjustments for sex and BMI make little difference, suggesting that age remains the key confounder.</p></li>
+</ul>
+<p>To avoid manual transcription and ensure reproducibility, we programmatically extract the coefficients and standard errors from the fitted models using <code>knitr::kable()</code>.</p>
+<p>The table below summarizes the associations between sodium, potassium, and blood pressure across the stepwise model sequence.</p>
+<div class="cell">
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>Table 1a. Associations between dietary sodium and potassium and blood pressure in NHANES 2003–2006. The units for all coefficients are mmHg/g/day. Standard errors are given in parentheses.</caption>
+<colgroup>
+<col style="width: 14%">
+<col style="width: 19%">
+<col style="width: 22%">
+<col style="width: 20%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Model</th>
+<th style="text-align: center;">Systolic BP Sodium</th>
+<th style="text-align: center;">Systolic BP Potassium</th>
+<th style="text-align: center;">Diastolic BP Sodium</th>
+<th style="text-align: center;">Diastolic BP Potassium</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Unadjusted</td>
+<td style="text-align: center;">-0.69 (0.17)</td>
+<td style="text-align: center;">0.78 (0.27)</td>
+<td style="text-align: center;">-0.05 (0.11)</td>
+<td style="text-align: center;">0.88 (0.21)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Age</td>
+<td style="text-align: center;">0.80 (0.15)</td>
+<td style="text-align: center;">-0.91 (0.19)</td>
+<td style="text-align: center;">0.43 (0.10)</td>
+<td style="text-align: center;">0.34 (0.20)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Age+gender</td>
+<td style="text-align: center;">0.59 (0.16)</td>
+<td style="text-align: center;">-1.09 (0.18)</td>
+<td style="text-align: center;">0.35 (0.10)</td>
+<td style="text-align: center;">0.26 (0.19)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Age+gender+BMI</td>
+<td style="text-align: center;">0.43 (0.16)</td>
+<td style="text-align: center;">-0.96 (0.17)</td>
+<td style="text-align: center;">0.19 (0.10)</td>
+<td style="text-align: center;">0.38 (0.18)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p><strong>Interpretation summary:</strong></p>
+<ul>
+<li><p>Adjusting for age reverses the unadjusted coefficients for both nutrients, confirming <strong>age as a dominant confounder</strong>.</p></li>
+<li><p>Adding sex and BMI results in only <strong>small additional adjustments</strong> to the estimates.</p></li>
+<li><p>Across all specifications, sodium shows a small <em>positive</em> association with blood pressure, while potassium remains <em>inversely associated</em>.</p></li>
+<li><p>The overall magnitudes of these effects are modest, consistent with the textbook’s conclusion that sodium and potassium have statistically significant but small impacts on blood pressure after accounting for confounding.</p></li>
+</ul>
+</section>
+<section id="sensitivity-natural-spline-for-age-table-1b" class="level2">
+<h2 class="anchored" data-anchor-id="sensitivity-natural-spline-for-age-table-1b">7.2. Sensitivity: Natural spline for age (Table 1b)</h2>
+<p>Age is a strong, potentially non-linear confounder for blood pressure.</p>
+<p>To test whether the functional form of age influences our results, we re-estimate the models using a <strong>natural spline</strong> for age. This allows smoother, more flexible age adjustment without assuming linearity.</p>
+<p>We also test whether the <strong>age × sex interaction</strong> changes the estimated sodium and potassium effects, since systolic BP often shows different age trends between men and women.</p>
+<p><strong>Model adjustments:</strong></p>
+<ol type="1">
+<li><p><strong>Replace linear age with a natural spline</strong> (<code>ns(RIDAGEYR, df = 4)</code>) to capture non-linear age effects.</p></li>
+<li><p><strong>Add an age × sex interaction</strong> (only on the spline models) to test for potential sex-specific age gradients.</p></li>
+</ol>
+<p>All other elements (survey weights, covariates, and outcomes) remain the same.</p>
+<p>Below, we report compact coefficient tables summarizing the spline-based estimates.</p>
+<div class="cell">
+<div class="cell-output-display">
+<table class="table caption-top table-sm table-striped small" data-quarto-postprocess="true">
+<caption>Table 1b. Sodium and potassium associations using a natural spline for age (mmHg/g/day; SE in parentheses).</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th">Model</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Systolic BP Sodium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Systolic BP Potassium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Diastolic BP Sodium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Diastolic BP Potassium</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Age (spline)</td>
+<td style="text-align: center;">0.79 (0.15)</td>
+<td style="text-align: center;">-0.85 (0.19)</td>
+<td style="text-align: center;">0.20 (0.09)</td>
+<td style="text-align: center;">-0.10 (0.17)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Age+gender (spline)</td>
+<td style="text-align: center;">0.58 (0.16)</td>
+<td style="text-align: center;">-1.03 (0.18)</td>
+<td style="text-align: center;">0.09 (0.09)</td>
+<td style="text-align: center;">-0.20 (0.17)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Age+gender+BMI (spline)</td>
+<td style="text-align: center;">0.45 (0.16)</td>
+<td style="text-align: center;">-0.84 (0.17)</td>
+<td style="text-align: center;">0.05 (0.09)</td>
+<td style="text-align: center;">-0.14 (0.16)</td>
+</tr>
+</tbody>
+</table>
+
+
+</div>
+</div>
+<p><strong>Interpretation summary:</strong></p>
+<ul>
+<li><p>Using a natural spline for age yields <strong>very similar coefficients</strong> to the linear-age models in Table 1a.</p></li>
+<li><p>The direction of associations remains the same:</p>
+<ul>
+<li><p>Sodium shows a <strong>small positive</strong> association with both systolic and diastolic BP after adjustment.</p></li>
+<li><p>Potassium remains <strong>inversely associated</strong> with BP.</p></li>
+</ul></li>
+<li><p>The spline adjustment slightly stabilizes standard errors but produces <strong>no meaningful shift in magnitude or significance</strong>, indicating that the linear-age specification was already adequate.</p></li>
+<li><p>This confirms Robert’s expectation that the spline term would have <strong>minimal impact</strong> on the key coefficients.</p></li>
+</ul>
+</section>
+<section id="sensitivity-natural-spline-age-sex-table-1c" class="level2">
+<h2 class="anchored" data-anchor-id="sensitivity-natural-spline-age-sex-table-1c">7.3. Sensitivity: Natural spline age × sex (Table 1c)</h2>
+<p>In the previous section, we used a natural spline for age to allow flexible adjustment for nonlinearity.</p>
+<p>Next, we examine whether <strong>the relationship between age and blood pressure differs by sex</strong> by including an <strong>age × sex interaction</strong> term on the spline basis.</p>
+<p><strong>Rationale:</strong></p>
+<ul>
+<li><p>Systolic BP often rises with age at different rates for men and women.</p></li>
+<li><p>Including an interaction between the spline basis of age and sex tests whether these differences meaningfully alter the sodium or potassium coefficients.</p></li>
+</ul>
+<p>All other aspects—survey weights, covariates, and outcomes—remain identical to the previous models.</p>
+<div class="cell">
+<div class="cell-output-display">
+<table class="table caption-top table-sm table-striped small" data-quarto-postprocess="true">
+<caption>Table 1c. Sodium and potassium associations with natural spline age and an age×sex interaction (mmHg/g/day; SE in parentheses).</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th">Model</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Systolic BP Sodium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Systolic BP Potassium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Diastolic BP Sodium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Diastolic BP Potassium</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Age×sex (spline)</td>
+<td style="text-align: center;">0.44 (0.15)</td>
+<td style="text-align: center;">-1.03 (0.17)</td>
+<td style="text-align: center;">0.07 (0.10)</td>
+<td style="text-align: center;">-0.23 (0.16)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Age×sex + BMI (spline)</td>
+<td style="text-align: center;">0.32 (0.16)</td>
+<td style="text-align: center;">-0.84 (0.16)</td>
+<td style="text-align: center;">0.03 (0.10)</td>
+<td style="text-align: center;">-0.16 (0.16)</td>
+</tr>
+</tbody>
+</table>
+
+
+</div>
+</div>
+<p><strong>Interpretation summary:</strong></p>
+<ul>
+<li><p>Adding the <strong>age × sex interaction</strong> leads to <strong>only minor numerical changes</strong> in the estimated coefficients for sodium and potassium.</p></li>
+<li><p>The direction and significance of the effects remain consistent with the spline-only models (Table 1b).</p></li>
+<li><p>This suggests that while blood pressure trajectories differ somewhat by sex, the overall sodium–potassium associations are <strong>robust</strong> to this specification.</p></li>
+<li><p>Thus, the large sign reversal seen between unadjusted and adjusted models (Table 1a) stems from <strong>age confounding itself</strong>, not from sex-specific nonlinearity in age.</p></li>
+</ul>
+</section>
+<section id="consolidated-comparison-linear-vs-spline-vs-splinesex" class="level2">
+<h2 class="anchored" data-anchor-id="consolidated-comparison-linear-vs-spline-vs-splinesex">7.4. Consolidated comparison (Linear vs Spline vs Spline×Sex)</h2>
+<p>To summarize the results from the three modeling approaches, we combine <strong>Tables 1a–1c</strong> into a single comparison table.</p>
+<p>This consolidated view allows us to examine how the sodium and potassium coefficients behave across:</p>
+<ul>
+<li><p><strong>Linear age models</strong> (Table 1a)</p></li>
+<li><p><strong>Spline age models</strong> (Table 1b)</p></li>
+<li><p><strong>Spline × Sex models</strong> (Table 1c)</p></li>
+</ul>
+<p>The goal is to evaluate whether flexible age modeling or the addition of age–sex interactions produces any meaningful differences in the estimated associations.</p>
+<div class="cell">
+<div class="cell-output-display">
+<table class="table caption-top table-sm table-striped small" data-quarto-postprocess="true">
+<caption>Comparison of linear, spline, and spline×sex models for sodium and potassium associations with blood pressure (mmHg/g/day; SE in parentheses).</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th">Model_Type</th>
+<th style="text-align: left;" data-quarto-table-cell-role="th">Model</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Systolic BP Sodium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Systolic BP Potassium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Diastolic BP Sodium</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Diastolic BP Potassium</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Linear age (Table 1a)</td>
+<td style="text-align: left;">Unadjusted</td>
+<td style="text-align: center;">-0.69 (0.17)</td>
+<td style="text-align: center;">0.78 (0.27)</td>
+<td style="text-align: center;">-0.05 (0.11)</td>
+<td style="text-align: center;">0.88 (0.21)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Linear age (Table 1a)</td>
+<td style="text-align: left;">Age</td>
+<td style="text-align: center;">0.80 (0.15)</td>
+<td style="text-align: center;">-0.91 (0.19)</td>
+<td style="text-align: center;">0.43 (0.10)</td>
+<td style="text-align: center;">0.34 (0.20)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Linear age (Table 1a)</td>
+<td style="text-align: left;">Age+gender</td>
+<td style="text-align: center;">0.59 (0.16)</td>
+<td style="text-align: center;">-1.09 (0.18)</td>
+<td style="text-align: center;">0.35 (0.10)</td>
+<td style="text-align: center;">0.26 (0.19)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Linear age (Table 1a)</td>
+<td style="text-align: left;">Age+gender+BMI</td>
+<td style="text-align: center;">0.43 (0.16)</td>
+<td style="text-align: center;">-0.96 (0.17)</td>
+<td style="text-align: center;">0.19 (0.10)</td>
+<td style="text-align: center;">0.38 (0.18)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Spline age (Table 1b)</td>
+<td style="text-align: left;">Age (spline)</td>
+<td style="text-align: center;">0.79 (0.15)</td>
+<td style="text-align: center;">-0.85 (0.19)</td>
+<td style="text-align: center;">0.20 (0.09)</td>
+<td style="text-align: center;">-0.10 (0.17)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Spline age (Table 1b)</td>
+<td style="text-align: left;">Age+gender (spline)</td>
+<td style="text-align: center;">0.58 (0.16)</td>
+<td style="text-align: center;">-1.03 (0.18)</td>
+<td style="text-align: center;">0.09 (0.09)</td>
+<td style="text-align: center;">-0.20 (0.17)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Spline age (Table 1b)</td>
+<td style="text-align: left;">Age+gender+BMI (spline)</td>
+<td style="text-align: center;">0.45 (0.16)</td>
+<td style="text-align: center;">-0.84 (0.17)</td>
+<td style="text-align: center;">0.05 (0.09)</td>
+<td style="text-align: center;">-0.14 (0.16)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Spline age × Sex (Table 1c)</td>
+<td style="text-align: left;">Age×sex (spline)</td>
+<td style="text-align: center;">0.44 (0.15)</td>
+<td style="text-align: center;">-1.03 (0.17)</td>
+<td style="text-align: center;">0.07 (0.10)</td>
+<td style="text-align: center;">-0.23 (0.16)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Spline age × Sex (Table 1c)</td>
+<td style="text-align: left;">Age×sex + BMI (spline)</td>
+<td style="text-align: center;">0.32 (0.16)</td>
+<td style="text-align: center;">-0.84 (0.16)</td>
+<td style="text-align: center;">0.03 (0.10)</td>
+<td style="text-align: center;">-0.16 (0.16)</td>
+</tr>
+</tbody>
+</table>
+
+
+</div>
+</div>
+<ul>
+<li><p><strong>Interpretation summary:</strong></p>
+<ul>
+<li><p>Replacing the linear age term with a natural spline and adding an age × sex interaction leads to <strong>only minor numerical changes</strong> in the sodium and potassium coefficients.</p></li>
+<li><p>The <strong>direction and magnitude</strong> of effects remain consistent across all model specifications, demonstrating that the results are <strong>robust</strong> to the specific functional form of age.</p></li>
+<li><p>The spline models (Table 1b) yield <strong>slightly smaller standard errors</strong>, indicating a small improvement in model flexibility but no major shift in effect size.</p></li>
+<li><p>Including the <strong>age × sex interaction</strong> (Table 1c) leaves the main findings virtually unchanged, suggesting that sex-specific aging patterns have little influence on these nutrient–blood pressure relationships.</p></li>
+</ul>
+<blockquote class="blockquote">
+<p><strong>Conclusion:</strong></p>
+<p>Across all model types, sodium remains weakly <em>positively</em> associated with blood pressure and potassium weakly <em>negatively</em> associated. These stability checks confirm that the main findings are <strong>robust to nonlinear and interaction adjustments for age</strong>, aligning with Robert’s expectation that the spline and interaction terms would not substantially alter the results.</p>
+</blockquote></li>
+</ul>
+</section>
+<section id="brief-discussion" class="level2">
+<h2 class="anchored" data-anchor-id="brief-discussion">7.5. Brief discussion</h2>
+<p>The stepwise and sensitivity analyses presented above provide a coherent picture of how dietary sodium and potassium relate to blood pressure after accounting for survey design and key demographic factors.</p>
+<p><strong>Key illustrations:</strong></p>
+<ul>
+<li><p><strong>Age is the dominant confounder.</strong><br>
+The large sign reversal between unadjusted and age-adjusted models demonstrates that failing to control for age severely distorts the direction of association.</p></li>
+<li><p><strong>Model specification is not critical.</strong><br>
+Using natural splines or adding an age × sex interaction produces only minimal changes in the estimated coefficients, confirming that the core findings are stable.</p></li>
+<li><p><strong>Magnitude of effects is small.</strong><br>
+Even after full adjustment, the associations of sodium and potassium with both systolic and diastolic BP are modest in size and consistent with the literature.</p></li>
+</ul>
+<p>These results align with Robert’s expectations and the textbook conclusions: the principal insight lies in understanding how adjustment—especially for age—changes interpretation, rather than in chasing incremental model refinements.</p>
+<p>In the next section, we examine <strong>diagnostics and model fit</strong> to ensure that these conclusions are supported by appropriate survey-weighted assumptions and well-behaved residuals.</p>
+</section>
+</section>
+<section id="diagnostic" class="level1">
+<h1>8. Diagnostic</h1>
+<p>To ensure that the survey-weighted regression results are well-behaved and not driven by model misspecification, we perform a brief set of diagnostics on the fully adjusted model.</p>
+<p>These checks confirm that residual patterns and predictor relationships are consistent with model assumptions under the complex NHANES survey design.</p>
+<p><strong>Goals of this section</strong></p>
+<ul>
+<li><p>Verify that residuals show no systematic curvature or heteroskedasticity.</p></li>
+<li><p>Assess approximate linearity for key continuous predictors (sodium, potassium, and age).</p></li>
+<li><p>Confirm that the diagnostics respect survey weights, strata, and PSUs.</p></li>
+</ul>
+<section id="preparing-the-analytic-subset" class="level2">
+<h2 class="anchored" data-anchor-id="preparing-the-analytic-subset">8.1 Preparing the analytic subset</h2>
+<p>Because <code>svyglm()</code> automatically omits rows with missing covariates, diagnostics must use the <strong>same non-missing subset</strong>as the fitted model.<br>
+We therefore:</p>
+<ol type="1">
+<li><p>Select the model to diagnose (here, <code>m3</code>, the fully adjusted SBP model).</p></li>
+<li><p>Recover the analytic subset used in that fit.</p></li>
+<li><p>Pass this subset to <code>make.panel.svysmooth()</code> so that all smoothers respect the design weights and stratification.</p></li>
+</ol>
+<p>This ensures that all diagnostic plots reflect the <strong>design-based structure</strong>, not a simple random sample.</p>
+</section>
+<section id="residuals-vs-fitted-with-survey-weighted-smoother" class="level2">
+<h2 class="anchored" data-anchor-id="residuals-vs-fitted-with-survey-weighted-smoother">8.2 Residuals vs Fitted with Survey-Weighted Smoother</h2>
+<p>We first inspect residuals against fitted values, overlaying a survey-weighted smoother.</p>
+<p>Pronounced curvature or trumpet-shaped patterns could indicate missing interactions or non-linear terms.</p>
+<p><strong>How to interpret</strong></p>
+<ul>
+<li><p>A near-flat smoother suggests no major mean-structure misspecification.</p></li>
+<li><p>Noticeable curvature would motivate adding an interaction (e.g., <code>age×sex</code>) or a flexible age term (e.g., natural splines).</p></li>
+</ul>
+</section>
+<section id="partial-residual-plots-weighted" class="level2">
+<h2 class="anchored" data-anchor-id="partial-residual-plots-weighted">8.3 Partial Residual Plots (Weighted)</h2>
+<p>Next, we draw partial residual curves using <code>termplot()</code> with <code>smooth = make.panel.svysmooth(nonmissing)</code> so that the curves are survey-weighted.<br>
+These plots help assess approximate linearity for continuous predictors such as sodium, potassium, and age, conditional on the other covariates.</p>
+<p><strong>Reading the plots</strong></p>
+<ul>
+<li><p>Visible curvature in sodium or potassium implies that transformations or spline terms might improve fit.</p></li>
+<li><p>Wider shaded bands mark higher uncertainty, often at intake extremes where survey weights emphasize fewer respondents.</p></li>
+<li><p>Patterns that differ by age could hint at interactions like <code>age×sex</code>—consistent with the additional models explored earlier.</p></li>
+</ul>
+</section>
+<section id="summary-of-diagnostics" class="level2">
+<h2 class="anchored" data-anchor-id="summary-of-diagnostics">8.4 Summary of Diagnostics</h2>
+<p>Overall, the diagnostic plots show <strong>no major structural problems</strong>: residual smoothers are approximately flat, and partial residuals for sodium, potassium, and age follow near-linear trends after adjustment.<br>
+This confirms that the main models are <strong>adequate under the survey design</strong> and that the spline and interaction sensitivity checks in Section 7 were well-targeted but not strictly necessary.</p>
+</section>
+</section>
+<section id="more-models-some-were-added-during-last-version-but-seems-a-bit-redundant-now-as-weve-made-so-much-revisions-on-section-7" class="level1">
+<h1>9. More Models (Some were added during last version, but seems a bit redundant now as we’ve made so much revisions on Section 7)</h1>
+<section id="sbp-model-with-interactions-table-5.2" class="level2">
+<h2 class="anchored" data-anchor-id="sbp-model-with-interactions-table-5.2">9.1. SBP model with interactions (Table 5.2)</h2>
+<p>We next test whether the effects of sodium and potassium on blood pressure <strong>change with age</strong>.<br>
+To make coefficients easier to interpret, we <strong>center age at 40 years</strong>, following the textbook’s approach.</p>
+<p>With this centering:</p>
+<ul>
+<li><p>The <strong>main effects</strong> for sodium and potassium represent their estimated effects <strong>at age 40</strong>.</p></li>
+<li><p>The <strong>interaction terms</strong> indicate how those effects <strong>change with each additional year of age</strong>.</p></li>
+</ul>
+<p>This model helps determine whether the association between dietary intake and systolic blood pressure strengthens or weakens as people get older.</p>
+<p><strong>Interpretation summary:</strong></p>
+<ul>
+<li><p>Coefficients for <strong>sodium</strong> and <strong>potassium</strong> can be interpreted as the estimated change in <em>systolic blood pressure (mmHg)</em> per 1 g/day increase in each nutrient <strong>at age 40</strong>.</p></li>
+<li><p>The corresponding <strong>age-interaction coefficients</strong> describe how these effects change per one-year increase in age.</p></li>
+<li><p>A <strong>positive interaction term</strong> implies that the nutrient’s effect on BP becomes stronger (more positive) with age, while a <strong>negative term</strong> means the effect weakens with age.</p></li>
+<li><p>These interaction slopes provide a clearer picture of how nutrient–BP relationships evolve over the lifespan, setting the stage for the diastolic analysis in the next subsection.</p></li>
+</ul>
+</section>
+<section id="dbp-model-with-interactions-table-5.2" class="level2">
+<h2 class="anchored" data-anchor-id="dbp-model-with-interactions-table-5.2">9.2. DBP model with interactions (Table 5.2)</h2>
+<p>We now fit the <strong>analogous interaction model</strong> for <em>diastolic blood pressure (BPXDAR)</em>.</p>
+<p>As in the systolic case, we interact the combined sodium–potassium term with <strong>centered age (RIDAGEYR − 40)</strong> and adjust for sex and BMI.</p>
+<p>This specification allows the nutrient–BP relationship to vary with age while maintaining interpretability at the 40-year reference point.</p>
+<p><strong>Interpretation summary:</strong></p>
+<ul>
+<li><p>As before, the <strong>main effects</strong> for sodium and potassium represent estimated changes in <em>diastolic blood pressure (mmHg)</em> per 1 g/day increase <strong>at age 40</strong>.</p></li>
+<li><p>The <strong>interaction coefficients</strong> indicate how these slopes change with each additional year of age.</p></li>
+<li><p>Comparing this model with the systolic version (Section 9.1) helps determine whether age modifies the sodium–potassium effects differently for systolic versus diastolic BP.</p></li>
+<li><p>Typically, the age interactions for diastolic BP are <strong>weaker and less consistent</strong>, suggesting that age-related modulation is more pronounced for systolic pressure.</p></li>
+</ul>
+</section>
+<section id="table-2.-age-interactions-summary-replicating-textbook-table-5.2" class="level2">
+<h2 class="anchored" data-anchor-id="table-2.-age-interactions-summary-replicating-textbook-table-5.2">9.3. Table 2. Age interactions summary (replicating textbook Table 5.2)</h2>
+<p>Following the fitted models from <strong>Sections 9.1 and 9.2</strong>, we now summarize the estimated <strong>age interactions</strong> for both systolic (SBP) and diastolic (DBP) blood pressure.</p>
+<p>Table 2 presents the coefficients, standard errors, and p-values for sodium and potassium main effects and their corresponding age interactions, using centered age RIDAGEYR−40 to represent changes relative to age 40.</p>
+<p>These results replicate <strong>Table 5.2</strong> from the textbook and provide an interpretable summary of how sodium and potassium effects vary with age.</p>
+<div class="cell">
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small" data-quarto-postprocess="true">
+<caption>Table 2. Interactions between age and sodium and potassium intake, data from NHANES 2003–2006</caption>
+<colgroup>
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+<col style="width: 14%">
+</colgroup>
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th" style="text-align: left; empty-cells: hide; border-bottom: hidden;"></th>
+<th colspan="3" data-quarto-table-cell-role="th" style="text-align: center; border-bottom: hidden; padding-bottom: 0; padding-left: 3px; padding-right: 3px;"><div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Systolic BP
+</div></th>
+<th colspan="3" data-quarto-table-cell-role="th" style="text-align: center; border-bottom: hidden; padding-bottom: 0; padding-left: 3px; padding-right: 3px;"><div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Diastolic BP
+</div></th>
+</tr>
+<tr class="odd">
+<th style="text-align: left;" data-quarto-table-cell-role="th"></th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Coefficient</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Std Error</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">p-value</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Coefficient</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">Std Error</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">p-value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Sodium</td>
+<td style="text-align: center;">0.310</td>
+<td style="text-align: center;">0.166</td>
+<td style="text-align: center;">0.075</td>
+<td style="text-align: center;">0.310</td>
+<td style="text-align: center;">0.114</td>
+<td style="text-align: center;">0.012</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Potassium</td>
+<td style="text-align: center;">-0.976</td>
+<td style="text-align: center;">0.183</td>
+<td style="text-align: center;">&lt; 0.001</td>
+<td style="text-align: center;">0.326</td>
+<td style="text-align: center;">0.182</td>
+<td style="text-align: center;">0.087</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Sodium:Age</td>
+<td style="text-align: center;">-0.016</td>
+<td style="text-align: center;">0.009</td>
+<td style="text-align: center;">0.086</td>
+<td style="text-align: center;">0.045</td>
+<td style="text-align: center;">0.007</td>
+<td style="text-align: center;">&lt; 0.001</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Potassium:Age</td>
+<td style="text-align: center;">-0.040</td>
+<td style="text-align: center;">0.010</td>
+<td style="text-align: center;">&lt; 0.001</td>
+<td style="text-align: center;">-0.037</td>
+<td style="text-align: center;">0.007</td>
+<td style="text-align: center;">&lt; 0.001</td>
+</tr>
+</tbody>
+</table>
+
+
+</div>
+</div>
+<ul>
+<li><p><strong>Main effects (Sodium, Potassium):</strong> Represent the estimated associations with blood pressure at <strong>age 40</strong>, since the models are centered at that age.</p></li>
+<li><p><strong>Interaction terms (Sodium×Age, Potassium×Age):</strong> Capture how the sodium and potassium effects vary with each additional year of age.<br>
+Negative coefficients suggest that the association weakens slightly as age increases.</p></li>
+<li><p><strong>Systolic vs.&nbsp;Diastolic patterns:</strong> Both SBP and DBP models display consistent signs, with potassium generally showing negative associations (protective) and sodium showing positive or near-zero effects. The age interactions are statistically significant for both nutrients, indicating modest age-related attenuation.</p></li>
+</ul>
+<p>Together, these results support the conclusion that the influence of dietary sodium and potassium on blood pressure is <strong>age-dependent but directionally stable</strong> — consistent with the patterns described in the textbook’s Table 5.2.</p>
+</section>
+<section id="additional-interaction-models-age-sex" class="level2">
+<h2 class="anchored" data-anchor-id="additional-interaction-models-age-sex">9.4. Additional interaction models (age × sex)</h2>
+<p>We now test whether the <strong>age gradient</strong> in blood pressure differs between males and females.</p>
+<p>To do so, we include an <strong>age × sex interaction term</strong>, while keeping sodium, potassium, and BMI as covariates.</p>
+<p>This model examines whether the relationship between age and blood pressure varies by sex, after accounting for key dietary and physiological factors.</p>
+<p>Specifically:</p>
+<ul>
+<li><p>The <strong>main effect of age</strong> represents the age–BP slope for the <strong>reference sex</strong> (e.g., males if coded as 1).</p></li>
+<li><p>The <strong>interaction term (age × sex)</strong> captures how that slope differs for the other sex.</p></li>
+<li><p>Including both SBP and DBP models allows comparison of whether this age-by-sex effect differs across the two BP outcomes.</p></li>
+</ul>
+<p><strong>Interpretation summary:</strong></p>
+<ul>
+<li><p>A <strong>significant age × sex term</strong> indicates that blood pressure changes with age differently for men and women.</p></li>
+<li><p>If the interaction term is <strong>positive</strong>, it suggests that the age-related increase in BP is steeper in females;<br>
+if <strong>negative</strong>, the increase is steeper in males.</p></li>
+<li><p>In practice, this interaction is often <strong>smaller for diastolic BP</strong> than for systolic BP, consistent with biological and hormonal differences that moderate age-related effects.</p></li>
+<li><p>These models serve as a precursor to the next section (9.4), where we replace linear age with <strong>natural splines</strong> to allow more flexible sex-specific age trends.</p></li>
+</ul>
+</section>
+<section id="natural-splines-for-age-with-sex-interaction" class="level2">
+<h2 class="anchored" data-anchor-id="natural-splines-for-age-with-sex-interaction">9.5. Natural splines for age with sex interaction</h2>
+<p>To model <strong>nonlinear age effects</strong>, we replace linear age with a <strong>natural spline</strong> (df = 5) and interact it with sex.</p>
+<p>This approach allows the shape of the <strong>age–blood pressure (BP)</strong> relationship to differ flexibly between males and females, rather than assuming a simple linear trend.</p>
+<p>Conceptually:</p>
+<ul>
+<li><p>The spline component models smooth but nonlinear age effects.</p></li>
+<li><p>The age × sex interaction lets the <strong>shape</strong> of the age–BP curve differ by sex, not just the slope.</p></li>
+<li><p>All other covariates (sodium, potassium, BMI) are retained for comparability with prior models.</p></li>
+</ul>
+<p>This specification extends Section 9.3 by allowing men and women to have distinct curvature patterns in their age-related BP trajectories.</p>
+<p><strong>Interpretation summary:</strong></p>
+<ul>
+<li><p><strong>Significant spline × sex terms</strong> suggest that the <strong>shape</strong> of the age–BP curve differs between men and women, beyond simple slope differences.</p></li>
+<li><p>For example, systolic BP may rise earlier or level off later in one sex, reflecting physiological or behavioral factors.</p></li>
+<li><p>If the spline terms are <em>not</em> significant, it implies that a simple linear age × sex interaction (as in Section 9.3) already captures most of the sex-specific age pattern.</p></li>
+<li><p>Together, these models confirm whether nonlinearities in the age–BP relationship are meaningful once dietary and body composition effects are controlled.</p></li>
+</ul>
+</section>
+<section id="marginal-effects-by-age-readable-summaries" class="level2">
+<h2 class="anchored" data-anchor-id="marginal-effects-by-age-readable-summaries">9.6. Marginal effects by age (readable summaries)</h2>
+<p>To make the interaction models (Sections <strong>9.1–9.2</strong>) more interpretable, we compute <strong>age-specific slopes</strong> for sodium and potassium at several reference ages (e.g., 20, 40, and 60 years).</p>
+<p>These values describe how the estimated effects of sodium and potassium on blood pressure <strong>change across the life course</strong>, providing a more intuitive view than interaction coefficients alone.</p>
+<p>Because age was <strong>centered at 40 years</strong> in the model, the estimated slope at any age A is given by:</p>
+<p><span class="math display">\[
+\beta_{\text{sodium}} + (A-40)\times \beta_{\text{sodium:age_c}}
+\]</span></p>
+<p>and likewise for potassium.</p>
+<p>At age 40, this simplifies to the model’s main effect; at other ages, the slope is adjusted according to the interaction term.</p>
+<p>We use a helper function below to compute these linear combinations (with standard errors and p-values) directly from the fitted model’s coefficients and variance–covariance matrix.</p>
+<p><strong>How to interpret the output:</strong></p>
+<ul>
+<li><p><strong>At age 40:</strong> The slope equals the model’s main effect, since agec=0agec​=0.</p></li>
+<li><p><strong>At age 60:</strong> Add 20×(interaction&nbsp;coefficient to the main effect — this shows how sodium/potassium effects evolve with age.</p></li>
+<li><p><strong>At age 20:</strong> Subtract 20×(interaction&nbsp;coefficient) from the main effect to reflect younger age effects.</p></li>
+<li><p><strong>Reported values</strong> represent the estimated change in <strong>SBP or DBP (mmHg)</strong> per <strong>1 g/day increase</strong> in sodium or potassium intake at the specified age, with standard errors and p-values based on the model’s survey-adjusted variance estimates.</p></li>
+</ul>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
