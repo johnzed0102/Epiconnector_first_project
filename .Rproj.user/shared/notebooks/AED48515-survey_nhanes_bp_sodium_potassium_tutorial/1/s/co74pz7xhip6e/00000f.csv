@@ -1,0 +1,5 @@
+"0","# Cycle C (2003–2004): pull and merge with jointQuery"
+"0","nhanes34 <- jointQuery(cols_c)"
+"2","Error in .checkTableNames(names(tables_n_cols)) : 
+  no database available for use
+"

@@ -1,0 +1,195 @@
+Here’s a **complete revision checklist** combining both Robert’s **email feedback** and his **Zoom meeting comments**, structured by section and task priority. You can use this list directly in your Atlas workspace to guide your next round of edits.
+
+------------------------------------------------------------------------
+
+## 🔧 Comprehensive Revision List
+
+**File:** `survey_nhanes_bp_sodium_potassium_tutorial.qmd`\
+**Goal:** Improve technical correctness, reproducibility, and readability.
+
+------------------------------------------------------------------------
+
+### 🗂️ 1. Repository Structure
+
+-    **Clean GitHub repo:**
+
+    -   Only keep the `.qmd` and `.Rproj` files in the repo.
+
+    -   Remove all processed `_files` directories and rendered outputs.
+
+    -   Document in README that users should rebuild the vignette via Quarto.
+
+------------------------------------------------------------------------
+
+### 🧭 2. Section Formatting and Structure
+
+-    **Remove manual section numbering.**\
+    Let Quarto handle numbering automatically for consistency.
+
+-    Keep only **major sections numbered** (e.g., *Introduction*, *Methods*, *Results*, *Discussion*).\
+    Subsections should use plain headers.
+
+------------------------------------------------------------------------
+
+### 🧹 3. Data Cleaning and Preprocessing
+
+-    **Survey object creation order:**
+
+    -   Create the `svydesign()` object **before** removing missing values.
+
+    -   Then use `subset()` to exclude missing sodium and potassium records.
+
+    -   Update code to:
+
+        ```         
+        des <- svydesign(id = ~SDMVPSU, strat = ~SDMVSTRA, weights = ~fouryearwt, nest = TRUE, data = nhanes)
+        des <- subset(des, !is.na(DR1TSODI) & !is.na(DR1TPOTA))
+        ```
+
+-    Add a short **explanation**:
+
+    > “Missing records were removed *after* defining the survey object to ensure proper weight adjustment.”
+
+-    **Explain age filtering:**\
+    Mention that dietary weights (`WTDRD1`) are unavailable for younger participants, so younger individuals were excluded.
+
+-    **Describe weight variable:**\
+    Explain why the four-year weight was created (`WTDRD1/2`) and clarify that it does not affect mean estimates.
+
+------------------------------------------------------------------------
+
+### 📊 4. Table 1 (Cohort Description)
+
+-    Use the **`tableone` package** to produce a descriptive “Table 1.”\
+    Include demographic and key variables (age, gender, BMI, sodium, potassium, BP).
+
+-    Generate a **kable-styled output** for clean presentation.\
+    Example:
+
+    ```         
+    CreateTableOne(vars = c("RIDAGEYR", "RIAGENDR", "BMXBMI", "sodium", "potassium", "BPXSAR"), strata = "RIAGENDR", data = nhanes)
+    ```
+
+-    Add one sentence linking to the epidemiology convention:
+
+    > “In epidemiologic reporting, Table 1 summarizes the analytic cohort characteristics.”
+
+------------------------------------------------------------------------
+
+### 📈 5. Models and Results
+
+-    Verify **model naming consistency** (`model0`, `model1`, `model2`, etc.).
+
+-    Add brief explanations between models:
+
+    -   `model0`: Unadjusted (sodium, potassium).
+
+    -   `model1`: Adds age (corrects for confounding).
+
+    -   `model2`: Adds gender and BMI (fully adjusted).
+
+-    Clarify **why age centering (`RIDAGEYR - 40`)** is used in interaction models:
+
+    > “Age was centered at 40 years to make the coefficients interpretable as effects at mid-adulthood.”
+
+-    Include `regTermTest()` output and short explanation for the joint sodium + potassium test.
+
+-    Explicitly interpret coefficient direction changes (confounding correction).
+
+------------------------------------------------------------------------
+
+### 🧪 6. Diagnostic and Residual Plots
+
+-    Add **code and figures** for residual diagnostics:
+
+    ```         
+    nonmissing <- des[-model1$na.action, ]
+    plot(model1, panel = make.panel.svysmooth(nonmissing))
+    termplot(model1, data = model.frame(nonmissing),
+             partial = TRUE, se = TRUE,
+             smooth = make.panel.svysmooth(nonmissing))
+    ```
+
+-    Briefly explain in text:
+
+    > “The weighted smoother (make.panel.svysmooth) ensures residual trends reflect survey design.”
+
+-    Add figure captions highlighting improvements:
+
+    > “No evidence of nonlinearity was observed in residuals or partial residuals.”
+
+------------------------------------------------------------------------
+
+### 👩‍🔬 7. Interaction Effects and Refinement
+
+-    Fit and interpret the **age × sex interaction model**:
+
+    ```         
+    model_int <- svyglm(BPXSAR ~ (sodium + potassium)*RIAGENDR, design = des)
+    ```
+
+-    Discuss expected residual improvements after including interactions.
+
+-    Optionally include a plot showing residual reduction or smoother fit.
+
+------------------------------------------------------------------------
+
+### 📊 8. Exploratory Plots (Sodium & Potassium)
+
+-    Create **breakdown plots by sex and/or age groups (decades)**:
+
+    ```         
+    nhanes$age_group <- cut(nhanes$RIDAGEYR, breaks = seq(20, 80, by = 10))
+    svyby(~sodium + potassium, ~age_group + RIAGENDR, des, svymean, na.rm = TRUE)
+    ```
+
+-    Visualize distributions with grouped bar or boxplots.\
+    Caption example:
+
+    > “Average sodium and potassium intakes differ across age decades and by sex.”
+
+------------------------------------------------------------------------
+
+### 🪶 9. Readability and Tone
+
+-    Rephrase overly strong statements (e.g., replace “fits well” → “no evidence of misspecification”).
+
+-    Simplify transitions between sections for smoother reading.
+
+-    Keep neutral scientific tone: use “suggests” instead of “shows.”
+
+------------------------------------------------------------------------
+
+### 🧱 10. Output and Build Settings
+
+-    Configure Quarto to build both **HTML and PDF outputs**:
+
+    ```         
+    format:
+      html:
+        code-fold: true
+      pdf:
+        toc: true
+    ```
+
+-    Hide large code outputs where appropriate using `echo = FALSE` or `eval = FALSE`.
+
+-    Verify all figures render correctly in both formats.
+
+------------------------------------------------------------------------
+
+### ✅ Final Steps
+
+-    Update `README.md` summarizing:
+
+    -   Revision rationale (tracked changes).
+
+    -   Instructions to rebuild vignette.
+
+-    Push to GitHub after all edits are complete.
+
+-    Inform Robert that revisions are finalized and a clean build is available for his review.
+
+------------------------------------------------------------------------
+
+Would you like me to produce a **shorter “To-Do Tracker Table”** (e.g., with columns for *Task*, *Status*, *Date Completed*) to paste into your Atlas notebook and check off as you revise?

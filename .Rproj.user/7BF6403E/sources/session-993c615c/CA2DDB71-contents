@@ -6,17 +6,11 @@ format:
   html:
     toc: true
     toc-depth: 3
-    code-fold: false
-    code-tools: true
-  pdf:
-    toc: true
-    toc-depth: 3
-    keep-tex: true
+    number-sections: false
+    code-fold: show
 execute:
   warning: false
   message: false
-  echo: true
-  include: true
 vignette: >
   %\VignetteIndexEntry{NHANES Sodium, Potassium, and Blood Pressure (Survey Analysis)}
   %\VignetteEngine{quarto}
@@ -164,7 +158,7 @@ nhanes$fouryearwt <- nhanes$WTDRD1 / 2
 nhanes <- subset(nhanes, !is.na(WTDRD1))
 ```
 
-Finally, we remove records with missing **WTDRD1** values before creating the survey design, following the `survey` package requirement that weights be non-missing.
+Finally, we remove records with missing **WTDRD1** values before creating the survey design, following Robert’s recommendation and the `survey` package requirement that weights be non-missing.
 
 Note: Dietary weights (WTDRD1) are only available for participants who completed the dietary recall interview, which typically excludes younger children. Therefore, by restricting the dataset to records with valid WTDRD1, younger participants are implicitly filtered out. This ensures that our analytic sample corresponds to the population eligible for dietary assessment in NHANES.
 
@@ -189,7 +183,7 @@ This table provides a descriptive overview of the analytic cohort and allows us 
 
 # 6. Survey Design
 
-We now build the NHANES complex survey design to mirror the textbook analysis. Strata and primary sampling units are SDMVSTRA and SDMVPSU, and the analytic weight is the Day-1 dietary weight (WTDRD1). Because we combine two 2-year cycles (2003–2004 and 2005–2006), we construct a four-year weight defined as fouryearwt = WTDRD1 / 2. Before creating the survey design object, we exclude records with missing WTDRD1 because the survey package requires non-missing weights. All other missing values—including dietary sodium and potassium—are retained until after the design is created. This ensures that the full sampling structure is preserved. After defining the design, we then subset out participants with missing sodium or potassium values.
+We now build the NHANES complex survey design to mirror the textbook analysis. Strata and primary sampling units are SDMVSTRA and SDMVPSU, and the analytic weight is the Day-1 dietary weight (WTDRD1). Because we combine two 2-year cycles (2003–2004 and 2005–2006), we construct a four-year weight defined as fouryearwt = WTDRD1 / 2. Before creating the survey design object, we exclude records with missing WTDRD1 because the survey package requires non-missing weights. All other missing values—including dietary sodium and potassium—are retained until after the design is created. This ensures that the full sampling structure is preserved, consistent with the workflow used in survey_weights_tutorial.rmd and Robert’s recommendation. After defining the design, we then subset out participants with missing sodium or potassium values.
 
 ```{r}
 options(survey.lonely.psu = "adjust")
@@ -540,7 +534,7 @@ k1b
 
 -   The spline adjustment slightly stabilizes standard errors but produces **no meaningful shift in magnitude or significance**, indicating that the linear-age specification was already adequate.
 
--   This confirms our expectation that the spline term would have **minimal impact** on the key coefficients.
+-   This confirms Robert’s expectation that the spline term would have **minimal impact** on the key coefficients.
 
 ### 7.2.4 Interpretation summary
 
@@ -685,6 +679,10 @@ k_all
 
     -   Including the **age × sex interaction** (Table 1c) leaves the main findings virtually unchanged, suggesting that sex-specific aging patterns have little influence on these nutrient–blood pressure relationships.
 
+    > **Conclusion:**
+    >
+    > Across all model types, sodium remains weakly *positively* associated with blood pressure and potassium weakly *negatively* associated. These stability checks confirm that the main findings are **robust to nonlinear and interaction adjustments for age**, aligning with Robert’s expectation that the spline and interaction terms would not substantially alter the results.
+
 ## 7.5. Brief discussion
 
 The stepwise and sensitivity analyses presented above provide a coherent picture of how dietary sodium and potassium relate to blood pressure after accounting for survey design and key demographic factors.
@@ -700,96 +698,83 @@ The stepwise and sensitivity analyses presented above provide a coherent picture
 -   **Magnitude of effects is small.**\
     Even after full adjustment, the associations of sodium and potassium with both systolic and diastolic BP are modest in size and consistent with the literature.
 
-These results align with our expectations and the textbook conclusions: the principal insight lies in understanding how adjustment—especially for age—changes interpretation, rather than in chasing incremental model refinements.
+These results align with Robert’s expectations and the textbook conclusions: the principal insight lies in understanding how adjustment—especially for age—changes interpretation, rather than in chasing incremental model refinements.
 
 In the next section, we examine **diagnostics and model fit** to ensure that these conclusions are supported by appropriate survey-weighted assumptions and well-behaved residuals.
 
 # 8. Diagnostic
 
-To ensure that the survey-weighted regression models are well-behaved, we perform a series of diagnostics for the fully adjusted systolic blood pressure model (Model 3).\
-These checks assess whether the residuals show curvature, heteroskedasticity, or nonlinearity that would suggest model misspecification.
+To ensure that the survey-weighted regression results are well-behaved and not driven by model misspecification, we perform a brief set of diagnostics on the fully adjusted model.
+
+These checks confirm that residual patterns and predictor relationships are consistent with model assumptions under the complex NHANES survey design.
+
+**Goals of this section**
+
+-   Verify that residuals show no systematic curvature or heteroskedasticity.
+
+-   Assess approximate linearity for key continuous predictors (sodium, potassium, and age).
+
+-   Confirm that the diagnostics respect survey weights, strata, and PSUs.
 
 ## 8.1 Preparing the analytic subset
 
-Because `svyglm()` automatically omits rows with missing covariates, diagnostics must use the same analytic subset used by the fitted model.\
-We therefore recover the subset and pass it to the survey-weighted smoother.
+Because `svyglm()` automatically omits rows with missing covariates, diagnostics must use the **same non-missing subset**as the fitted model.\
+We therefore:
 
-```{r 8_1_subset, echo=TRUE, message=FALSE, warning=FALSE}
-# Choose model to diagnose 
-diag_model <- m3  # fully adjusted SBP model 
-# Non-missing analytic subset used by diag_model 
-nonmissing <- des[-diag_model$na.action, ]
-```
+1.  Select the model to diagnose (here, `m3`, the fully adjusted SBP model).
 
-This ensures that all diagnostic plots reflect the design-based structure, not a simple random sample.
+2.  Recover the analytic subset used in that fit.
 
-## 8.2 Residuals vs Fitted (Survey-weighted)
-
-We first inspect residuals against fitted values, overlaying a **survey-weighted smoother** using `make.panel.svysmooth()`.
-
-Pronounced curvature or fan-shaped patterns would indicate missing interaction terms or non-linear effects.
+3.  Pass this subset to `make.panel.svysmooth()` so that all smoothers respect the design weights and stratification.
 
 ```{r}
-par(mfrow = c(2, 2))
-plot(diag_model, panel = make.panel.svysmooth(nonmissing))
-par(mfrow = c(1, 1))
+# Choose which model to diagnose
+diag_model <- m3  # or m1 for the age-adjusted textbook example
+
+# Non-missing analytic subset used by diag_model
+nonmissing <- des[-diag_model$na.action]
 ```
 
-**Interpretation:**
+This ensures that all diagnostic plots reflect the **design-based structure**, not a simple random sample.
 
-A near-flat smoother suggests no major model misspecification. If curvature were visible, we might consider adding an age × sex interaction or using spline terms, as explored in Section 7.
+## 8.2 Residuals vs Fitted with Survey-Weighted Smoother
+
+We first inspect residuals against fitted values, overlaying a survey-weighted smoother.
+
+Pronounced curvature or trumpet-shaped patterns could indicate missing interactions or non-linear terms.
+
+```{r}
+par(mfrow = c(2,2))
+plot(diag_model, panel = make.panel.svysmooth(nonmissing))
+```
+
+**How to interpret**
+
+-   A near-flat smoother suggests no major mean-structure misspecification.
+
+-   Noticeable curvature would motivate adding an interaction (e.g., `age×sex`) or a flexible age term (e.g., natural splines).
 
 ## 8.3 Partial Residual Plots (Weighted)
 
-Next, we draw **partial residual curves** using `termplot()` with `smooth = make.panel.svysmooth(nonmissing)` so that the smoothers respect the survey design. These plots test whether predictors like sodium, potassium, and age show approximately linear relationships after adjustment.
+Next, we draw partial residual curves using `termplot()` with `smooth = make.panel.svysmooth(nonmissing)` so that the curves are survey-weighted.\
+These plots help assess approximate linearity for continuous predictors such as sodium, potassium, and age, conditional on the other covariates.
 
 ```{r}
 termplot(diag_model,data = model.frame(nonmissing), partial = TRUE, se = TRUE, smooth = make.panel.svysmooth(nonmissing))
 ```
 
-**Interpretation:**
+**Reading the plots**
 
--   Curvature in sodium or potassium would imply that transformations or spline terms could improve fit.
+-   Visible curvature in sodium or potassium implies that transformations or spline terms might improve fit.
 
-<!-- -->
+-   Wider shaded bands mark higher uncertainty, often at intake extremes where survey weights emphasize fewer respondents.
 
--   Wider confidence bands typically reflect sparse coverage at intake extremes.
+-   Patterns that differ by age could hint at interactions like `age×sex`—consistent with the additional models explored earlier.
 
--   The roughly linear patterns confirm that the model specification is adequate for these predictors.
+## 8.4 Summary of Diagnostics
 
-## 8.4 Residual Improvement after Interaction
-
-```{r}
-par(mfrow = c(1, 2))
-
-# Model without interaction
-
-plot(fitted(m3), resid(m3),
-main = "Model 3: No Interaction",
-xlab = "Fitted values", ylab = "Residuals")
-lines(lowess(fitted(m3), resid(m3)), col = "blue", lwd = 2)
-
-# Model with age × sex interaction
-
-plot(fitted(m3_ns_int), resid(m3_ns_int),
-main = "Model 3_ns_int: With Age × Sex Interaction",
-xlab = "Fitted values", ylab = "Residuals")
-lines(lowess(fitted(m3_ns_int), resid(m3_ns_int)), col = "blue", lwd = 2)
-
-par(mfrow = c(1, 1))
-```
-
-**Interpretation:** Adding the age × sex interaction yields a smoother and flatter residual trend, particularly among older participants, confirming improved fit. This supports the earlier conclusion that interaction and spline adjustments modestly enhance model adequacy.
-
-## 8.5 Summary of Diagnostics
-
--   **Residuals** are approximately homoscedastic and show no pronounced curvature.
-
--   **Partial residuals** for sodium, potassium, and age remain linear after adjustment.
-
--   **Including the age × sex interaction** further stabilizes residual trends.
-
-Together, these diagnostics confirm that the fully adjusted model (Model 3) and its refinements (spline and interaction variants) satisfy survey-weighted regression assumptions and are well specified.
+Overall, the diagnostic plots show **no major structural problems**: residual smoothers are approximately flat, and partial residuals for sodium, potassium, and age follow near-linear trends after adjustment.\
+This confirms that the main models are **adequate under the survey design** and that the spline and interaction sensitivity checks in Section 7 were well-targeted but not strictly necessary.
 
 # 9. More Models (Some were added during last version, but seems a bit redundant now as we've made so much revisions on Section 7)
 
