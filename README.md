@@ -1,15 +1,3 @@
-## Revision Summary (Oct. 25)
+## Revision Summary (Nov. 28)
 
-This update completes all major revisions from Robert’s feedback. The analysis and plots are now fully aligned with reproducibility standards.
-
-### Main Changes
-
--   Cleaned repository and removed redundant output files.
--   Reorganized data-processing steps to ensure survey design precedes subsetting.
--   Clarified weight usage and variable definitions.
--   Added survey-weighted Table 1 and improved model naming (`m0`–`m7`).
--   Refined explanations for age centering and spline models.
--   Implemented interaction models (age × sex) and residual diagnostics.
--   Added exploratory plots of sodium and potassium by sex and age group.
--   Improved readability, section flow, and figure captions.
--   Standardized output format for both HTML and PDF rendering.
+Structural changes made
