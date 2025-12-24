@@ -8,10 +8,6 @@ format:
     toc-depth: 3
     code-fold: false
     code-tools: true
-  pdf:
-    toc: true
-    toc-depth: 3
-    keep-tex: true
 execute:
   warning: false
   message: false
@@ -21,29 +17,23 @@ vignette: >
   %\VignetteIndexEntry{NHANES Sodium, Potassium, and Blood Pressure (Survey Analysis)}
   %\VignetteEngine{quarto}
   %\VignetteEncoding{UTF-8}
+bibliography: reference.bib
 ---
 
 # 1. Introduction
 
-In this vignette, we reproduce and extend a textbook analysis of the relationship between dietary sodium, dietary potassium, and blood pressure using NHANES data from 2003–2006.\
-Our primary goals are to demonstrate **reproducible analysis workflows** using the **Epiconnector** ecosystem and the **NHANES Docker instance**, ensuring that every step—from data retrieval to model fitting—can be replicated without manual downloads.
+In this vignette, we reproduce and extend a textbook analysis of the relationship between dietary sodium, dietary potassium, and blood pressure using NHANES data from 2003–2006. Our primary goals are to demonstrate **reproducible analysis workflows** using the **Epiconnector** ecosystem and the **NHANES Docker instance**, ensuring that every step—from data retrieval to model fitting—can be replicated without manual downloads.
 
 Specifically, we show how to:
 
 -   Retrieve and merge NHANES datasets programmatically using the Epiconnector tools (`phonto` and `nhanesA`) within the Docker environment.
 -   Apply the appropriate survey weights to account for NHANES’s complex sampling design.
 -   Fit survey-weighted regression models to estimate associations between nutrient intake and systolic/diastolic blood pressure.
--   Compare the reproduced results with those presented in the textbook to validate reproducibility.
+-   Compare the reproduced results with those reported in Chapter 5.2.4 of @lumley2010 to validate reproducibility.
 
-For background on **what NHANES is** and **how to access it reproducibly**, readers are referred to the companion paper:
+For background on NHANES and on how the data can be accessed in a fully reproducible manner, readers are referred to the companion paper by @lahale2023. That paper introduces the Epiconnector framework and demonstrates how NHANES data can be retrieved and analyzed reproducibly within a Docker-based environment. The corresponding vignette, NHANESpaper.Rmd, is included in the phonto package and provides a detailed walkthrough of the underlying data-access infrastructure.
 
-> *Laha Ale, Robert Gentleman, Christopher Endres, Sam Pullman, Nathan Palmer, Rafael Goncalves, and Deepayan Sarkar.* (in press). **Enhancing Statistical Analysis of Real World Data.**
->
-> (Available as `NHANESpaper.Rmd` in the `phonto` vignettes.)
-
-That paper provides an overview of the Epiconnector framework and demonstrates how NHANES data can be accessed and analyzed reproducibly within a Docker environment.
-
-This vignette complements it by reproducing a textbook example to illustrate how the Epiconnector–Docker setup supports transparent and reproducible epidemiologic analysis.
+The present vignette builds on this foundation. Rather than introducing NHANES or the Epiconnector tools in detail, our focus is on reproducing a specific textbook example to illustrate how the Epiconnector–Docker setup supports transparent and reproducible epidemiologic analysis. In particular, we replicate and extend the survey-weighted regression analysis presented in Chapter 5.2.4 of @lumley2010, using programmatic data access and explicitly documented modeling steps throughout.
 
 # 2. Packages
 
@@ -95,9 +85,9 @@ DEMO_keep <- c("SEQN","RIAGENDR","RIDAGEYR",
 # BPX: only what's needed for analysis + manual averages for 2005–06 if missing
 BPX_keep <- c(
   "SEQN",
-  "BPXSAR","BPXDAR",          # precomputed (present in 2003–04; may be NA in 2005–06)
-  "BPXSY1","BPXSY2","BPXSY3","BPXSY4",  # raw systolic repeats
-  "BPXDI1","BPXDI2","BPXDI3","BPXDI4"   # raw diastolic repeats
+  "BPXSAR","BPXDAR", # precomputed (present in 2003–04; may be NA in 2005–06)
+  "BPXSY1","BPXSY2","BPXSY3","BPXSY4", # raw systolic repeats
+  "BPXDI1","BPXDI2","BPXDI3","BPXDI4" # raw diastolic repeats
 )
 
 BPX_keep_D <- setdiff(BPX_keep, c("BPXSAR","BPXDAR"))
@@ -155,9 +145,11 @@ For the D cycle we use the same keep lists, but the BP table may lack pre-averag
 # Cycle D (2005–2006): pull and merge with jointQuery and add BPXSAR, BPXDAR
 nhanes56 <- jointQuery(cols_d)
 
-nhanes56$BPXSAR <- rowMeans(nhanes56[, c("BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4")], 
+nhanes56$BPXSAR <- rowMeans(nhanes56[, c("BPXSY1", "BPXSY2", "BPXSY3", 
+                                         "BPXSY4")], 
                             na.rm = TRUE)
-nhanes56$BPXDAR <- rowMeans(nhanes56[, c("BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4")], 
+nhanes56$BPXDAR <- rowMeans(nhanes56[, c("BPXDI1", "BPXDI2", "BPXDI3", 
+                                         "BPXDI4")], 
                             na.rm = TRUE)
 ```
 
@@ -197,11 +189,21 @@ cont_summary <- nhanes |>
   group_by(RIAGENDR) |>
   summarise(
     N = n(),
-    `Age (yrs), mean ± SD` = sprintf("%.1f ± %.1f", mean(RIDAGEYR, na.rm = TRUE), sd(RIDAGEYR, na.rm = TRUE)),
-    `BMI (kg/m²), mean ± SD` = sprintf("%.1f ± %.1f", mean(BMXBMI, na.rm = TRUE), sd(BMXBMI, na.rm = TRUE)),
-    `Sodium (mg/day), mean ± SD` = sprintf("%.0f ± %.0f", mean(sodium, na.rm = TRUE), sd(sodium, na.rm = TRUE)),
-    `Potassium (mg/day), mean ± SD` = sprintf("%.0f ± %.0f", mean(potassium, na.rm = TRUE), sd(potassium, na.rm = TRUE)),
-    `Systolic BP (mmHg), mean ± SD` = sprintf("%.1f ± %.1f", mean(BPXSAR, na.rm = TRUE), sd(BPXSAR, na.rm = TRUE))
+    `Age (yrs), mean ± SD` = sprintf("%.1f ± %.1f", mean(RIDAGEYR, 
+                                                         na.rm = TRUE), 
+                                     sd(RIDAGEYR, na.rm = TRUE)),
+    `BMI (kg/m²), mean ± SD` = sprintf("%.1f ± %.1f", mean(BMXBMI, 
+                                                           na.rm = TRUE), 
+                                       sd(BMXBMI, na.rm = TRUE)),
+    `Sodium (mg/day), mean ± SD` = sprintf("%.0f ± %.0f", mean(sodium, 
+                                                               na.rm = TRUE), 
+                                           sd(sodium, na.rm = TRUE)),
+    `Potassium (mg/day), mean ± SD` = sprintf("%.0f ± %.0f", mean(potassium, 
+                                                                  na.rm = TRUE), 
+                                              sd(potassium, na.rm = TRUE)),
+    `Systolic BP (mmHg), mean ± SD` = sprintf("%.1f ± %.1f", mean(BPXSAR, 
+                                                                  na.rm = TRUE), 
+                                              sd(BPXSAR, na.rm = TRUE))
   ) |>
   rename(gender = RIAGENDR)
 
@@ -209,11 +211,21 @@ cont_summary <- nhanes |>
 overall <- nhanes |>
   summarise(
     N = n(),
-    `Age (yrs), mean ± SD` = sprintf("%.1f ± %.1f", mean(RIDAGEYR, na.rm = TRUE), sd(RIDAGEYR, na.rm = TRUE)),
-    `BMI (kg/m²), mean ± SD` = sprintf("%.1f ± %.1f", mean(BMXBMI, na.rm = TRUE), sd(BMXBMI, na.rm = TRUE)),
-    `Sodium (mg/day), mean ± SD` = sprintf("%.0f ± %.0f", mean(sodium, na.rm = TRUE), sd(sodium, na.rm = TRUE)),
-    `Potassium (mg/day), mean ± SD` = sprintf("%.0f ± %.0f", mean(potassium, na.rm = TRUE), sd(potassium, na.rm = TRUE)),
-    `Systolic BP (mmHg), mean ± SD` = sprintf("%.1f ± %.1f", mean(BPXSAR, na.rm = TRUE), sd(BPXSAR, na.rm = TRUE))
+    `Age (yrs), mean ± SD` = sprintf("%.1f ± %.1f", mean(RIDAGEYR, 
+                                                         na.rm = TRUE), 
+                                     sd(RIDAGEYR, na.rm = TRUE)),
+    `BMI (kg/m²), mean ± SD` = sprintf("%.1f ± %.1f", mean(BMXBMI, 
+                                                           na.rm = TRUE), 
+                                       sd(BMXBMI, na.rm = TRUE)),
+    `Sodium (mg/day), mean ± SD` = sprintf("%.0f ± %.0f", mean(sodium, 
+                                                               na.rm = TRUE), 
+                                           sd(sodium, na.rm = TRUE)),
+    `Potassium (mg/day), mean ± SD` = sprintf("%.0f ± %.0f", mean(potassium, 
+                                                                  na.rm = TRUE), 
+                                              sd(potassium, na.rm = TRUE)),
+    `Systolic BP (mmHg), mean ± SD` = sprintf("%.1f ± %.1f", mean(BPXSAR, 
+                                                                  na.rm = TRUE), 
+                                              sd(BPXSAR, na.rm = TRUE))
   ) |>
   mutate(gender = "All") |>
   dplyr::select(gender, everything())
@@ -245,9 +257,10 @@ tab_display <- tab_cont |>
 # Create the formatted table
 kbl(
   tab_display,
-  caption = "Descriptive characteristics of the analytic sample (NHANES 2003–2006).",
+  caption = "Descriptive characteristics of the analytic sample 
+  (NHANES 2003–2006).",
   booktabs = TRUE,
-  align = "lcccccc"
+  align = "llcccc"
 ) |>
   kable_styling(
     bootstrap_options = c("striped", "condensed"),
@@ -256,10 +269,13 @@ kbl(
     position = "center"
   ) |>
   row_spec(0, bold = TRUE, align = "center") |>
-  add_header_above(c(" " = 1, "Summary Statistics" = 6), bold = TRUE, line = TRUE) |>
-  pack_rows("Demographic and Clinical Characteristics", 1, 3, bold = TRUE, italic = FALSE) |>
+  add_header_above(c(" " = 1, "Summary Statistics" = 6), bold = TRUE, 
+                   line = TRUE) |>
+  pack_rows("Demographic and Clinical Characteristics", 1, 3, bold = TRUE, 
+            italic = FALSE) |>
   footnote(
-    general = "Values are mean ± SD unless otherwise indicated. BP = blood pressure.",
+    general = "Values are mean ± SD unless otherwise indicated. 
+    BP = blood pressure.",
     general_title = "Note: ",
     threeparttable = TRUE
   )
@@ -353,6 +369,8 @@ if (!all(c("sodium","potassium") %in% names(des$variables))) {
 
 # 7. Models
 
+In this section, our focus is not on developing new biological insight from the NHANES data, but on demonstrating a reproducible statistical workflow that mirrors the analysis presented in the textbook. Because substantive interpretation of metabolic or physiological mechanisms lies outside the scope of this vignette, our contribution is instead methodological: we show how to replicate an existing analysis using fully programmatic data access, transparent modeling steps, and diagnostics that assess whether model assumptions align with the underlying data. The emphasis throughout is on statistical practice, how models should be specified, fitted, checked, and compared; so that results are reproducible and analytically defensible. The models we present below therefore serve as a vehicle for illustrating good analytic workflow rather than for drawing new biological conclusions.
+
 ## 7.1. Linear Models: Baseline Associations
 
 We start by fitting **survey-weighted linear models** for *systolic blood pressure (BPXSAR)*, following the textbook’s stepwise approach:
@@ -384,7 +402,8 @@ A joint test using `regTermTest()` assesses whether sodium and potassium jointly
 m0 <- svyglm(BPXSAR ~ sodium + potassium, design = des)
 m1 <- svyglm(BPXSAR ~ sodium + potassium + RIDAGEYR, design = des)
 m2 <- svyglm(BPXSAR ~ sodium + potassium + RIDAGEYR + RIAGENDR, design = des)
-m3 <- svyglm(BPXSAR ~ sodium + potassium + RIDAGEYR + RIAGENDR + BMXBMI, design = des)
+m3 <- svyglm(BPXSAR ~ sodium + potassium + RIDAGEYR + RIAGENDR + BMXBMI, 
+             design = des)
 
 # summary(m0); summary(m1); summary(m2); summary(m3)
 
@@ -399,7 +418,8 @@ We repeat the same stepwise specification for **diastolic blood pressure (BPXDAR
 m4 <- svyglm(BPXDAR ~ sodium + potassium, design = des)
 m5 <- svyglm(BPXDAR ~ sodium + potassium + RIDAGEYR, design = des)
 m6 <- svyglm(BPXDAR ~ sodium + potassium + RIDAGEYR + RIAGENDR, design = des)
-m7 <- svyglm(BPXDAR ~ sodium + potassium + RIDAGEYR + RIAGENDR + BMXBMI, design = des)
+m7 <- svyglm(BPXDAR ~ sodium + potassium + RIDAGEYR + RIAGENDR + BMXBMI, 
+             design = des)
 
 # summary(m4); summary(m5); summary(m6); summary(m7)
 ```
@@ -413,7 +433,8 @@ The table below summarizes the associations between sodium, potassium, and blood
 #| warning: false
 
 # Helper: extract sodium & potassium rows from svyglm() summaries
-coef_table <- function(mod_list, model_names, keep_terms = c("sodium","potassium")) {
+coef_table <- function(mod_list, model_names, keep_terms = 
+                         c("sodium","potassium")) {
   do.call(rbind, lapply(seq_along(mod_list), function(i) {
     s <- summary(mod_list[[i]])
     co <- coef(s)
@@ -440,7 +461,8 @@ ord <- c("Unadjusted", "Age and gender","Age, gender, BMI")
 # Wide SBP
 sbp_wide <- tab_sbp |>
   transform(value = fmt(estimate, se),
-            term = ifelse(term=="sodium","Systolic BP Sodium","Systolic BP Potassium")) |>
+            term = ifelse(term=="sodium","Systolic BP Sodium",
+                          "Systolic BP Potassium")) |>
   subset(select = c(model, term, value)) |>
   tidyr::pivot_wider(names_from = term, values_from = value) |>
   dplyr::arrange(factor(model, levels = ord)) |>
@@ -449,7 +471,8 @@ sbp_wide <- tab_sbp |>
 # Wide DBP
 dbp_wide <- tab_dbp |>
   transform(value = fmt(estimate, se),
-            term = ifelse(term=="sodium","Diastolic BP Sodium","Diastolic BP Potassium")) |>
+            term = ifelse(term=="sodium","Diastolic BP Sodium",
+                          "Diastolic BP Potassium")) |>
   subset(select = c(model, term, value)) |>
   tidyr::pivot_wider(names_from = term, values_from = value) |>
   dplyr::arrange(factor(model, levels = ord)) |>
@@ -459,9 +482,10 @@ dbp_wide <- tab_dbp |>
 table1a <- dplyr::left_join(sbp_wide, dbp_wide, by = "Model")
 knitr::kable(
   table1a,
-  caption = "Associations between dietary sodium and potassium and blood pressure in NHANES 2003–2006.",
+  caption = "Associations between dietary sodium and potassium and blood 
+  pressure in NHANES 2003–2006.",
   booktabs = TRUE,
-  align = c("l","c","c","c","c")
+  align = "llcccc"
 )
 ```
 
@@ -527,7 +551,7 @@ To evaluate model adequacy and assess whether adjusting for demographic and heal
 
 4.  Model 3 – Fully Adjusted (Age + Gender + BMI)
 
-Residual plots based on simple scatter + LOWESS were visually noisy and not fully informative for detecting subtle structure. Following advisor feedback, we instead use `smoothScatter()` and `hexbin()` to better visualize density & heteroskedasticity, especially near the center of mass.
+Residual plots based on simple scatter + LOWESS were visually noisy and not fully informative for detecting subtle structure. We instead use `smoothScatter()` and `hexbin()` to better visualize density & heteroskedasticity, especially near the center of mass.
 
 ```{r}
 #| label: fig-residual-diagnostics-1
@@ -619,18 +643,24 @@ des <- update(
 # --- SBP models with natural spline for age ---
 m1_ns <- svyglm(BPXSAR ~ sodium + potassium + age_ns, design = des)
 m2_ns <- svyglm(BPXSAR ~ sodium + potassium + age_ns + RIAGENDR, design = des)
-m3_ns <- svyglm(BPXSAR ~ sodium + potassium + age_ns + RIAGENDR + BMXBMI, design = des)
+m3_ns <- svyglm(BPXSAR ~ sodium + potassium + age_ns + RIAGENDR + BMXBMI, 
+                design = des)
 
 # --- DBP models with natural spline for age ---
 m5_ns <- svyglm(BPXDAR ~ sodium + potassium + age_ns, design = des)
 m6_ns <- svyglm(BPXDAR ~ sodium + potassium + age_ns + RIAGENDR, design = des)
-m7_ns <- svyglm(BPXDAR ~ sodium + potassium + age_ns + RIAGENDR + BMXBMI, design = des)
+m7_ns <- svyglm(BPXDAR ~ sodium + potassium + age_ns + RIAGENDR + BMXBMI, 
+                design = des)
 
 # --- Spline models with age × gender interaction ---
-m2_ns_int <- svyglm(BPXSAR ~ sodium + potassium + RIAGENDR * age_ns, design = des)
-m3_ns_int <- svyglm(BPXSAR ~ sodium + potassium + RIAGENDR * age_ns + BMXBMI, design = des)
-m6_ns_int <- svyglm(BPXDAR ~ sodium + potassium + RIAGENDR * age_ns, design = des)
-m7_ns_int <- svyglm(BPXDAR ~ sodium + potassium + RIAGENDR * age_ns + BMXBMI, design = des)
+m2_ns_int <- svyglm(BPXSAR ~ sodium + potassium + RIAGENDR * age_ns, 
+                    design = des)
+m3_ns_int <- svyglm(BPXSAR ~ sodium + potassium + RIAGENDR * age_ns + BMXBMI, 
+                    design = des)
+m6_ns_int <- svyglm(BPXDAR ~ sodium + potassium + RIAGENDR * age_ns, 
+                    design = des)
+m7_ns_int <- svyglm(BPXDAR ~ sodium + potassium + RIAGENDR * age_ns + BMXBMI, 
+                    design = des)
 ```
 
 These spline-based models mirror the fully adjusted linear models (`m3` and `m7`) but allow the effect of age on blood pressure to vary smoothly rather than linearly. We used four degrees of freedom (df = 4)。
@@ -652,15 +682,13 @@ par(mfrow = c(1, 3))
 
 smoothScatter(fitted(m3), resid(m3), main = "Linear Age + Gender + BMI", 
               xlab = "Fitted values", ylab = "Residuals")
-lines(lowess(fitted(m3), resid(m3)), col = "red", lwd = 2)
 
 smoothScatter(fitted(m3_ns), resid(m3_ns), main = "Spline Age + Gender + BMI",
               xlab = "Fitted values", ylab = "Residuals")
-lines(lowess(fitted(m3_ns), resid(m3_ns)), col = "red", lwd = 2)
 
-smoothScatter(fitted(m3_ns_int), resid(m3_ns_int), main = "Spline Age × Gender + BMI",
+smoothScatter(fitted(m3_ns_int), resid(m3_ns_int), 
+              main = "Spline Age × Gender + BMI",
               xlab = "Fitted values", ylab = "Residuals")
-lines(lowess(fitted(m3_ns_int), resid(m3_ns_int)), col = "red", lwd = 2)
 
 par(mfrow = c(1, 1))
 ```
@@ -783,9 +811,11 @@ table_all <- table_all |>
 ## ---- print-table --------------------------------------------------------
 k_all <- knitr::kable(
   table_all,
-  caption = "Comparison of linear, spline, and spline×gender models for sodium and potassium associations with blood pressure (mmHg/g/day; SE in parentheses).",
+  caption = "Comparison of linear, spline, and spline×gender models for sodium 
+  and potassium associations with blood pressure 
+  (mmHg/g/day; SE in parentheses).",
   booktabs = TRUE,
-  align = c("l", "l", "c", "c", "c", "c")
+  align = "llcccc"
 )
 
 if (requireNamespace("kableExtra", quietly = TRUE)) {
@@ -801,7 +831,7 @@ The results for diastolic BP are even more striking. The sodium estimate rapidly
 
 Overall, these findings highlight the importance of accounting for nonlinear age patterns and potential age–gender interactions when modeling dietary effects. The spline-based models produce smaller and more conservative estimates, and for diastolic BP in particular, they suggest that the linear model may have overstated the strength of association. Taken together, this comparison demonstrates how model specification meaningfully influences inference and reinforces the value of flexible modeling strategies in survey-based epidemiologic analyses.
 
-## **7.3.** Interpretation & Key Insights
+## 7.3. Interpretation & Key Insights
 
 The analyses above illustrate how model specification meaningfully shapes the estimated associations between dietary sodium and potassium and blood pressure once survey design and key demographic factors are accounted for. Several consistent themes emerge:
 
@@ -827,199 +857,183 @@ These patterns suggest that linear adjustment may mask underlying heterogeneity 
 
 # 8. Model Diagnostics
 
-## 8.1. Reproducing Textbook Diagnostics (Fully Adjusted Linear Model)
+In this section, we assess model adequacy by examining **residuals plotted against key covariates**, rather than relying on global diagnostics such as QQ-plots or residuals-versus-fitted plots. In survey-weighted NHANES models, global diagnostics are often dominated by the complex sampling design and are less informative for detecting **functional form misspecification** or **unmodeled interactions**.
 
-To ensure fidelity to the original textbook example, we first reproduce the diagnostics conducted by Lumley on the **fully adjusted linear model**. In the textbook (Figure 5.12), diagnostics were applied **only to the final linear model** — the one adjusted for **age, gender, and BMI**.
+Our diagnostic strategy focuses on whether the data are consistent with the assumptions imposed by each model specification. In particular, we examine residual patterns with respect to covariates that play a central role in the analysis, **age, BMI, sodium, and potassium**, and evaluate whether these patterns vary systematically by sex.
 
-In our analysis, this model corresponds to **`m3`**, which is defined as:
+Specifically, we compare residual behavior across three model classes for both systolic and diastolic blood pressure:
 
-```{r}
-m3 <- svyglm(BPXSAR ~ sodium + potassium + RIDAGEYR + RIAGENDR + BMXBMI, design = des)
-```
+-   **Linear age models** (`m3`, `m7`)
 
-Lumley used two diagnostic plots:
+-   **Natural spline age models** (`m3_ns`, `m7_ns`)
 
-1.  **Scaled residuals vs fitted values**
+-   **Natural spline models with age × sex interaction** (`m3_ns_int`, `m7_ns_int)`
 
-2.  **Partial residuals for sodium**
+This side-by-side comparison allows us to determine whether increasing model flexibility removes systematic structure from the residuals, thereby supporting the interpretability of the fitted coefficients.
 
-These diagnostics assess whether:
+## 8.1. Helper Functions (Partial Residuals)
 
--   The functional form is appropriate (linearity),
+To assess whether the functional form used for a given covariate is appropriate, it is often more informative to examine **partial residuals** rather than raw residuals. While standard residual diagnostics summarize overall model fit, partial residuals isolate the contribution of a specific covariate and are therefore well suited for detecting **nonlinearity**, **inadequate adjustment**, or **unmodeled interaction effects** associated with that variable.
 
--   Residuals show systematic structure (possible misspecification),
+For a (survey-weighted) generalized linear model of the form
 
--   A more flexible model is warranted (motivation for Section 8.2).
+$$ Y = \beta_0 + \beta_1 X_1 + \cdots + \beta_k X_k + \varepsilon, $$
 
-Below we reproduce these diagnostics in our reproducible container environment.
+the partial residual for covariate (X_j) is defined as
 
-```{r}
-#| label: fig-diag-1
+$$r_i^{(j)} = \hat{\varepsilon}_i + \hat{\beta}_j X_{ij},$$\
+where $\hat{\varepsilon}_i = Y_i - \hat{Y}_i$ is the model residual and $\hat{\beta}_j$ is the estimated coefficient for $X_j$.
 
-nonmissing_m3 <- des[-m3$na.action, ]
-par(mfrow = c(2,2))
-plot(m3,panel = make.panel.svysmooth(nonmissing_m3), main = "Residuals vs Fitted (Replicating Lumley, Textbook Figure 5.12)")
-```
+This construction “adds back” the fitted linear component of $X_j$, producing a quantity whose expectation reflects the underlying (possibly nonlinear) relationship between $X_j$ and the outcome, conditional on the other covariates. Plotting $r_i^{(j)}$ against $X_j$:
 
-Following Lumley’s textbook diagnostics (Figure 5.12), we first examine the **fully adjusted linear model** (`m3`) using the standard set of residual-based plots:
+-   removes the influence of other covariates,
 
-(i). residuals vs fitted values,
+-   preserves the shape of the association between $X_j$ and the response, and
 
-(ii). Q–Q residual plot,
+-   provides a direct diagnostic for assessing whether linearity is adequate or whether spline or interaction terms are warranted.
 
-(iii). scale–location plot, and
+Although the `survey` package does not provide built-in partial residual plots, partial residuals can be constructed directly using `fitted()` and `resid()`. For this vignette, we define helper functions that generate consistent residual-versus-covariate plots across all model specifications. Residuals are colored by sex to facilitate visual detection of potential age–sex interaction patterns that may not be evident from numerical coefficient summaries alone.
 
-(iv). residuals vs leverage.
-
-These diagnostics help assess whether the assumed *linear structure* of predictors—including age, gender, BMI, sodium, and potassium—adequately captures the underlying relationship with systolic blood pressure. A well-behaved linear model should show residuals randomly scattered around zero without systematic curvature or strong outliers.
-
-@fig-diag-1 shows the four-panel diagnostic output for model `m3`. Key patterns include:
-
--   **Residuals vs Fitted**: points remain centered around zero, with no clear curvature—suggesting no major nonlinearity.
-
--   **Q–Q Plot**: some deviation at upper quantiles indicates mild departure from normality but not severe.
-
--   **Scale–Location Plot**: a faint upward trend suggests slight heteroscedasticity but still within acceptable limits.
-
--   **Residuals vs Leverage**: limited influential points with high leverage, but none large enough to distort the model.
-
-Overall, the diagnostic plots are **consistent with Lumley’s findings**—there is no strong evidence of functional misspecification, but mild deviations hint that a more flexible model could capture additional structure.
+These plots form the basis of Sections 8.2, where we evaluate the adequacy of linear age effects, assess whether nonlinear age terms are required, and examine whether residual structure remains after introducing age × sex interactions.
 
 ```{r}
-#| label: fig-diag-2
-
-# Choose model to diagnose 
-diag_model <- m3  # fully adjusted SBP model 
-# Non-missing analytic subset used by diag_model 
-nonmissing <- des[-diag_model$na.action, ]
-
-# Extract model frame
-mf <- model.frame(nonmissing)
-
-# Define plotting helper
-plot_partial <- function(model, var, xlab) {
+# Helper: residuals vs covariate with optional color
+plot_resid_vs_cov <- function(model, var, des, xlab, color_by = NULL) {
   f <- fitted(model)
   y <- resid(model)
+  mf <- model.frame(des[-model$na.action, ])
+
   x <- mf[[var]]
-  ok <- is.finite(x) & is.finite(f) & is.finite(y)
-  
-  plot(x[ok], y[ok],
-       main = paste("Partial residuals for", xlab),
-       xlab = xlab, ylab = "Residuals",
-       pch = 19, cex = 0.4, col = "grey70")
-  lines(lowess(x[ok], y[ok]), col = "blue", lwd = 2)
+
+  if (is.null(color_by)) {
+    colvec <- "grey70"
+  } else {
+    grp <- factor(mf[[color_by]])
+    colvec <- ifelse(grp == levels(grp)[1], "#5DADE2", "#F5B7B1")
+  }
+
+  plot(
+    x, y,
+    pch = 19, cex = 0.4, col = colvec,
+    xlab = xlab, ylab = "Residuals"
+  )
+  abline(a = 0, b = 0, lty = 2)
 }
-
-plot_partial(model = m3, var = "sodium", xlab = "Sodium (g/day)")
 ```
 
-@fig-diag-2 shows the *partial residual plot* for **sodium**, replicating the second panel of Lumley’s diagnostics. Consistent with the textbook example, the partial residuals cluster densely around zero with no clear curvature. The overlaid smoother remains largely flat, indicating that under a fully adjusted linear model, sodium shows a **primarily linear association** with systolic blood pressure—not strongly nonlinear.
+## 8.2. Partial Residual Plots for Key Covariates
 
-This aligns with Lumley’s interpretation that:
+In this section, we compare **partial residual plots across model specifications** to assess whether the assumed functional forms and interaction structures are supported by the data. The focus is on identifying systematic residual patterns with respect to individual covariates that would indicate model misspecification.
 
-> *“There is no suggestion of nonlinearity in the relationship between sodium and blood pressure.”* (Lumley, p. 102)
+For each covariate, residual behavior is examined **side by side across competing models**, allowing us to evaluate whether increasing flexibility, through nonlinear age terms or age × sex interactions, removes residual structure and improves consistency with model assumptions. Residuals are colored by sex to facilitate detection of interaction-related patterns that may not be evident from coefficient summaries alone.
 
-At the same time, the dispersion increases at higher sodium levels, suggesting that **allowing age to vary nonlinearly** or **interact with sodium** may offer clearer insights, leading naturally to spline and interaction specifications.
+The following subsections present diagnostics for age, BMI, sodium, and potassium in turn.
 
-In summary, the diagnostics for the fully adjusted linear model reproduce Lumley’s original findings. The model shows reasonable fit and no major violations of linearity—however, subtle trends in the residual structure suggest that **a more flexible specification may better capture age-related variation or effect modification**.
+### 8.2.1. Residuals vs Age
 
-Therefore, in **Section 8.2**, we extend these diagnostics to the spline (`m3_ns`) and interaction (`m3_ns_int`) models to evaluate whether flexible age structures yield improved fit or reveal additional patterns not captured by the linear model.
-
-## 8.2. Diagnostics for Spline and Interaction Models
-
-While the diagnostics in Section 8.1 reproduced Lumley’s conclusion that the fully adjusted linear model shows no major violations of linearity, subtle structure in the residuals suggested that a more flexible age specification may reveal additional patterns.
-
-To evaluate this, we extend the diagnostic procedure to the two models fitted in Section 7:
-
--   **Spline model (`m3_ns`)**: allows *nonlinear* effects of age
--   **Spline × gender interaction model (`m3_ns_int`)**: allows effect modification
-
-Our goal here is not formal model comparison, but rather to check whether **the shape of the residuals changes** — which may signal that flexibility in age improves model fit.
-
-We apply **the same two diagnostics used in Section 8.1**:
-
-1.  **Residuals vs fitted values** — for overall model adequacy
-2.  **Partial residuals for sodium** — to assess whether the sodium effect becomes clearer or more structured under flexible age specification
-
-To maintain reproducibility, we reuse the same plotting functions introduced earlier.
-
-**Model with spline age only (`m3_ns`)**
+We begin by examining partial residuals for **age**, plotted against age and colored by sex, to assess whether a linear age term adequately captures the age–blood pressure relationship and whether residual structure differs systematically by sex. We compare linear, spline-based, and spline–sex interaction specifications to evaluate remaining curvature, heteroscedasticity, or sex-specific patterns that would indicate model misspecification.
 
 ```{r}
-#| label: fig-ns-diag
+#| label: fig-pr-age-s
 
-# Extract non-missing data for spline model
-nonmissing_m3_ns <- des[-m3_ns$na.action, ]
-
-par(mfrow= c(2,2))
-# Residuals vs fitted plot for spline model
-plot(m3_ns,
-     panel = make.panel.svysmooth(nonmissing_m3_ns),
-     main = "Residuals vs Fitted — Spline Age Model (m3_ns)")
+par(mfrow = c(1, 3))
+plot_resid_vs_cov(m3, "RIDAGEYR", des, "Age", color_by = "RIAGENDR")
+plot_resid_vs_cov(m3_ns, "RIDAGEYR", des, "Age", color_by = "RIAGENDR")
+plot_resid_vs_cov(m3_ns_int, "RIDAGEYR", des, "Age", color_by = "RIAGENDR")
+par(mfrow = c(1, 1))
 ```
 
-The residual–fitted plot from @fig-ns-diag suggests mild funneling at higher predicted values, indicating some remaining heteroscedasticity despite using a spline for age. The scale-location plot reinforces this, with variance still slightly increasing toward the right side. The Q–Q plot shows noticeable right skewness, suggesting heavy tails not fully captured by the model. Finally, the residuals vs leverage plot indicates a few influential points but none exceeding standard thresholds. Overall, the spline model improves flexibility but still leaves some nonlinearity and heteroscedasticity unaccounted for.
-
-**Model with spline × gender interaction (`m3_ns_int`)**
+For systolic blood pressure models (@fig-pr-age-s), the partial residual plots exhibit relatively subtle differences across model specifications that may not be immediately apparent at standard plotting resolutions. A closer inspection reveals that both the linear and natural spline models show residual clustering by sex over portions of the age range, indicating remaining age–sex–dependent structure not fully accounted for by these specifications. While the natural spline model (`m3_ns`) offers little visible improvement over the linear model, the spline-based age × sex interaction model (`m3_ns_int`) produces a noticeably different residual pattern when examined carefully: sex-specific clustering is reduced, and residuals appear more dispersed and better intermingled across sexes. Given the subtlety of these differences, you are encouraged to reproduce the plots at higher resolution or to zoom in on localized regions of the age range to more clearly observe the improvement associated with the interaction specification.
 
 ```{r}
-#| label: fig-ns-int-diag
+#| label: fig-pr-age-d
 
-# Extract non-missing data for interaction model
-nonmissing_m3_ns_int <- des[-m3_ns_int$na.action, ]
-
-par(mfrow= c(2,2))
-# Residuals vs fitted plot for interaction model
-plot(m3_ns_int,
-     panel = make.panel.svysmooth(nonmissing_m3_ns_int),
-     main = "Residuals vs Fitted — Interaction Model (m3_ns_int)")
+par(mfrow = c(1, 3))
+plot_resid_vs_cov(m7, "RIDAGEYR", des, "Age", color_by = "RIAGENDR")
+plot_resid_vs_cov(m7_ns, "RIDAGEYR", des, "Age", color_by = "RIAGENDR")
+plot_resid_vs_cov(m7_ns_int, "RIDAGEYR", des, "Age", color_by = "RIAGENDR")
+par(mfrow = c(1, 1))
 ```
 
-Compared to m3_ns, this interaction model slightly improves the spread of residuals and reduces heteroscedasticity, especially among mid-range predicted values. However, the Q–Q plot from @fig-ns-int-diag still shows similar tail behavior, implying that the interaction term does not fully address departures from normality. The leverage plot similarly identifies a few potential influential observations, but no extreme outliers dominate the model. These results suggest that adding the age–gender interaction improves fit marginally but does not address all limitations.
+For diastolic blood pressure (@fig-pr-age-d), the partial residuals against age provide clear evidence of misspecification under the linear age model. In the fully adjusted linear model (`m7`), residuals display pronounced curvature across age, with systematic deviations from zero that are inconsistent with a purely linear age effect. This pattern strongly indicates that a single linear age term is inadequate for modeling diastolic blood pressure. Replacing the linear age term with a natural spline (`m7_ns`) substantially reduces this curvature, yielding residuals that are more symmetrically distributed across the age range. The spline-based specifications therefore provide a markedly improved representation of the age–diastolic blood pressure relationship, highlighting the importance of nonlinear age adjustment for this outcome.
 
-We again generate partial residual plots for **sodium**, focusing on whether nonlinearity is more visible once age is modeled flexibly.
+The remaining partial residual plots for BMI, sodium, and potassium do not exhibit clear or systematic differences across model specifications that can be reliably distinguished by visual inspection alone. In contrast to age, residual patterns for these covariates appear largely similar across linear, spline-based, and interaction models, with no evident structure indicating substantial misspecification or unmet functional form assumptions.
+
+Given this, we present the corresponding plots in Sections 8.2.2–8.2.4 without additional commentary and invite readers to examine them directly. This reflects an important diagnostic principle: when partial residual plots do not reveal discernible or interpretable structure beyond random variation, further narrative interpretation is neither necessary nor statistically justified. The visual diagnostics reinforce the conclusion that age is the dominant driver of residual structure in these models.
+
+### 8.2.2. Residuals vs BMI
 
 ```{r}
-#| label: fig-ns-diag-2
+#| label: fig-pr-bmi-s
 
-# Partial residuals for sodium — spline model
-plot_partial(model = m3_ns,
-             var   = "sodium",
-             xlab  = "Sodium (g/day) — Spline Age Model (m3_ns)")
+par(mfrow = c(1, 3))
+plot_resid_vs_cov(m3, "BMXBMI", des, "BMI", color_by = "RIAGENDR")
+plot_resid_vs_cov(m3_ns, "BMXBMI", des, "BMI", color_by = "RIAGENDR")
+plot_resid_vs_cov(m3_ns_int, "BMXBMI", des, "BMI", color_by = "RIAGENDR")
+par(mfrow = c(1, 1))
 ```
-
-The partial residual plot @fig-ns-diag-2 for sodium under m3_ns shows a largely flat trend, suggesting no strong nonlinear relationship between sodium intake and blood pressure once age and covariates are modeled flexibly. The smooth line has only mild curvature, indicating that while the spline captured age effects, sodium itself does not contribute major nonlinear variation. This aligns with earlier coefficient results, where sodium was significant but effect size remained modest.
 
 ```{r}
-#| label: fig-ns-int-diag-2
+#| label: fig-pr-bmi-d
 
-# Partial residuals for sodium — interaction model
-plot_partial(model = m3_ns_int,
-             var   = "sodium",
-             xlab  = "Sodium (g/day) — Spline × Gender Model (m3_ns_int)")
+par(mfrow = c(1, 3))
+plot_resid_vs_cov(m7, "BMXBMI", des, "BMI", color_by = "RIAGENDR")
+plot_resid_vs_cov(m7_ns, "BMXBMI", des, "BMI", color_by = "RIAGENDR")
+plot_resid_vs_cov(m7_ns_int, "BMXBMI", des, "BMI", color_by = "RIAGENDR")
+par(mfrow = c(1, 1))
 ```
 
-The sodium × age interaction partial plot @fig-ns-int-diag-2 reveals slightly more curvature than its non-interaction counterpart, with mild deviation at both tails. This indicates a weak effect modification by age, consistent with our earlier inference. However, the trend remains overall stable, suggesting that while interaction terms help marginally, their contribution to improving prediction or model diagnostics is still limited.
+### 8.2.3. Sodium
 
-Taken together, these diagnostics confirm that using splines improves fit over the linear m3 model, but the gains are modest. The interaction model (m3_ns_int) performs slightly better, though neither fully addresses issues of non-normality and mild heteroscedasticity. These findings motivate further model refinement, which we explore next in **Section 8.3**, where we compare overall model performance using pseudo-R² and other fit criteria.
+```{r}
+#| label: fig-pr-na-s
 
-## 8.3. Summary of Diagnostic Findings
+par(mfrow = c(1, 3))
+plot_resid_vs_cov(m3, "sodium", des, "Sodium (g/day)", color_by = "RIAGENDR")
+plot_resid_vs_cov(m3_ns, "sodium", des, "Sodium (g/day)", color_by = "RIAGENDR")
+plot_resid_vs_cov(m3_ns_int, "sodium", des, "Sodium (g/day)", color_by = "RIAGENDR")
+par(mfrow = c(1, 1))
+```
 
-Across the two spline models, the diagnostics reveal **some improvements compared to the linear model**, but also **persistent departures from ideal model assumptions**.
+```{r}
+#| label: fig-pr-na-d
 
-**First**, both diagnostic figures for the spline models (@fig-ns-diag and @fig-ns-int-diag) indicate a **slight reduction in overall spread of Pearson residuals**, which suggests that allowing nonlinear age effects helps capture additional variability that the linear model could not.
+par(mfrow = c(1, 3))
+plot_resid_vs_cov(m7, "sodium", des, "Sodium (g/day)", color_by = "RIAGENDR")
+plot_resid_vs_cov(m7_ns, "sodium", des, "Sodium (g/day)", color_by = "RIAGENDR")
+plot_resid_vs_cov(m7_ns_int, "sodium", des, "Sodium (g/day)", color_by = "RIAGENDR")
+par(mfrow = c(1, 1))
+```
 
-**However**, the Q–Q plots still deviate visibly from the theoretical line, and residuals in the upper tail remain heavy. The **scale–location plots** show a gradual increase in variance as fitted values increase, implying **residual heteroscedasticity remains**.
+### 8.2.4. Potassium
 
-**Second**, comparing spline-only and spline×gender models (@fig-ns-diag vs. @fig-ns-int-diag), the overall patterns are **highly similar**, indicating that including the interaction term does **not dramatically alter diagnostics**. The leverage plots also highlight a consistent set of influential observations across both models.
+```{r}
+#| label: fig-pr-k-s
 
-Overall:
+par(mfrow = c(1, 3))
+plot_resid_vs_cov(m3, "potassium", des, "Potassium (g/day)", color_by = "RIAGENDR")
+plot_resid_vs_cov(m3_ns, "potassium", des, "Potassium (g/day)", color_by = "RIAGENDR")
+plot_resid_vs_cov(m3_ns_int, "potassium", des, "Potassium (g/day)", color_by = "RIAGENDR")
+par(mfrow = c(1, 1))
+```
 
--   **Spline terms improve the age–BP relationship**, consistent with biological expectations.
--   **Model assumptions are still imperfect**, particularly regarding residual variance and tail behavior.
--   **The gender interaction does not noticeably improve diagnostics.**
+```{r}
+#| label: fig-pr-k-d
 
-These results suggest that while nonlinear age specifications are more appropriate than linear age, **further refinement may be needed**—for example, including additional covariates or reconsidering variance structure.
+par(mfrow = c(1, 3))
+plot_resid_vs_cov(m7, "potassium", des, "Potassium (g/day)", color_by = "RIAGENDR")
+plot_resid_vs_cov(m7_ns, "potassium", des, "Potassium (g/day)", color_by = "RIAGENDR")
+plot_resid_vs_cov(m7_ns_int, "potassium", des, "Potassium (g/day)", color_by = "RIAGENDR")
+par(mfrow = c(1, 1))
+```
+
+## 8.3. Summary of Model Diagnostics
+
+Across all diagnostic checks, age emerges as the primary source of model sensitivity and potential misspecification in both systolic and diastolic blood pressure models. Partial residual plots consistently indicate that linear age terms inadequately capture the age–blood pressure relationship, while spline-based specifications substantially reduce residual structure, particularly for diastolic blood pressure.
+
+By contrast, partial residuals for BMI, sodium, and potassium display no strong or systematic departures from randomness across competing model specifications. The absence of clear residual patterns for these covariates suggests that their effects are reasonably well captured by simple linear terms within the current modeling framework, and that additional nonlinearities or interactions are not strongly indicated by the diagnostics.
+
+Taken together, these results support the use of flexible age modeling as a necessary component of adequately specified survey-weighted blood pressure models, while providing little evidence that further complexity for other covariates materially improves model adequacy. The diagnostics emphasize the importance of prioritizing model flexibility where it is empirically warranted, rather than uniformly increasing complexity across all predictors.
 
 # 9. More Models
 
@@ -1129,9 +1143,10 @@ colnames(tab2) <- c("",
                     "Coefficient","Std Error","p-value")
 k <- knitr::kable(
   tab2,
-  caption = "Interactions between age and sodium and potassium intake, data from NHANES 2003–2006",
+  caption = "Interactions between age and sodium and potassium intake, data 
+  from NHANES 2003–2006",
   booktabs = TRUE,
-  align = c("l","c","c","c","c","c","c")
+  align = "llcccc"
 )
 
 # If kableExtra is available, add panel headers for SBP/DBP:
@@ -1249,19 +1264,17 @@ These values describe how the estimated effects of sodium and potassium on blood
 
 Because age was **centered at 40 years** in the model, the estimated slope at any age A is given by:
 
-$$
-\beta_{\text{sodium}} + (A-40)\times \beta_{\text{sodium:age_c}}
-$$
+$$\beta_{\text{sodium}} + (A - 40) \times \beta_{\text{sodium}:\text{age}_c}$$
 
 and likewise for potassium.
 
-At age 40, this simplifies to the model’s main effect; at other ages, the slope is adjusted according to the interaction term.
+At age 40, this simplifies to the model’s main effect; at other ages, thgeie slope is adjusted according to the interaction term.
 
 We use a helper function below to compute these linear combinations (with standard errors and p-values) directly from the fitted model’s coefficients and variance–covariance matrix.
 
 ```{r}
-# Helper to compute age-specific slopes (linear combinations) for sodium/potassium
-marginal_slopes <- function(mod, ages = c(20, 40, 60), terms = c("sodium","potassium")) {
+marginal_slopes <- function(mod, ages = c(20, 40, 60), 
+                            terms = c("sodium","potassium")) {
   b  <- coef(mod)
   V  <- vcov(mod)
   df <- summary(mod)$df  # design-based df used by svyglm summaries
@@ -1270,7 +1283,8 @@ marginal_slopes <- function(mod, ages = c(20, 40, 60), terms = c("sodium","potas
     agec <- age - 40
     main <- term
     inter <- paste0(term, ":age_c")
-    if (!all(c(main, inter) %in% names(b))) stop("Term names not found in model: ", term)
+    if (!all(c(main, inter) %in% names(b))) 
+      stop("Term names not found in model: ", term)
 
     L <- rep(0, length(b)); names(L) <- names(b)
     L[main]  <- 1
@@ -1291,10 +1305,12 @@ marginal_slopes <- function(mod, ages = c(20, 40, 60), terms = c("sodium","potas
 
 **How to interpret the output:**
 
--   **At age 40:** The slope equals the model’s main effect, since agec=0agec​=0.
+-   **At age 40:** The slope equals the model’s main effect, since agec=0 agec=0.
 
--   **At age 60:** Add 20×(interaction coefficient to the main effect — this shows how sodium/potassium effects evolve with age.
+-   **At age 60:** Add 20×(interaction coefficient to the main effect — this shows how sodium/potassium effects evolve with age.
 
--   **At age 20:** Subtract 20×(interaction coefficient) from the main effect to reflect younger age effects.
+-   **At age 20:** Subtract 20×(interaction coefficient) from the main effect to reflect younger age effects.
 
 -   **Reported values** represent the estimated change in **SBP or DBP (mmHg)** per **1 g/day increase** in sodium or potassium intake at the specified age, with standard errors and p-values based on the model’s survey-adjusted variance estimates.
+
+# References
